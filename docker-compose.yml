@@ -1,0 +1,68 @@
+name: tasker-local
+
+services:
+  postgres:
+    image: postgres:17-alpine
+    environment:
+      POSTGRES_DB: tasker
+      POSTGRES_USER: tasker
+      POSTGRES_PASSWORD: tasker
+    ports:
+      - "127.0.0.1:5433:5432"
+    volumes:
+      - tasker_postgres_data:/var/lib/postgresql/data
+    healthcheck:
+      test: ["CMD-SHELL", "pg_isready -U tasker -d tasker"]
+      interval: 5s
+      timeout: 3s
+      retries: 20
+
+  migrate:
+    build:
+      context: .
+      target: runner
+    command: ["./node_modules/.bin/tsx", "src/db/migrate.ts"]
+    environment: &tasker-environment
+      NODE_ENV: production
+      APP_BASE_URL: http://localhost:3001
+      DATABASE_URL: postgres://tasker:tasker@postgres:5432/tasker
+      SESSION_SECRET: local-development-session-secret-change-me
+      INTEGRATION_ENCRYPTION_KEY: bG9jYWwtZGV2ZWxvcG1lbnQta2V5LWNoYW5nZS1tZQ==
+      DEFAULT_TIME_ZONE: Europe/Warsaw
+      DEFAULT_TASK_HOUR: "14"
+      OVERDUE_REMINDER_HOUR: "9"
+      WORKER_CONCURRENCY: "5"
+    depends_on:
+      postgres:
+        condition: service_healthy
+    restart: "no"
+
+  web:
+    build:
+      context: .
+      target: web
+    environment: *tasker-environment
+    ports:
+      - "127.0.0.1:3001:3000"
+    depends_on:
+      migrate:
+        condition: service_completed_successfully
+    healthcheck:
+      test: ["CMD-SHELL", "wget -qO- http://127.0.0.1:3000/api/health/live >/dev/null"]
+      interval: 10s
+      timeout: 3s
+      retries: 10
+
+  worker:
+    build:
+      context: .
+      target: runner
+    command: ["./node_modules/.bin/tsx", "src/worker/index.ts"]
+    environment: *tasker-environment
+    depends_on:
+      migrate:
+        condition: service_completed_successfully
+    restart: unless-stopped
+
+volumes:
+  tasker_postgres_data:

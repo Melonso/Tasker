@@ -1,0 +1,19 @@
+{
+  "name": "Tasker",
+  "short_name": "Tasker",
+  "description": "Zadania, terminy i odpowiedzialność w jednym miejscu.",
+  "start_url": "/",
+  "display": "standalone",
+  "background_color": "#f5f7f2",
+  "theme_color": "#173f35",
+  "lang": "pl",
+  "scope": "/",
+  "icons": [
+    {
+      "src": "/icons/tasker.svg",
+      "sizes": "any",
+      "type": "image/svg+xml",
+      "purpose": "any maskable"
+    }
+  ]
+}

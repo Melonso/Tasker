@@ -1,0 +1,1 @@
+ALTER TYPE "public"."command_draft_status" ADD VALUE 'PROCESSING' BEFORE 'CONFIRMED';
