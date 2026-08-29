@@ -45,7 +45,9 @@ const normalizeUpdate = node({
         "const update = $json;\n" +
         "const callback = update.callback_query || null;\n" +
         "const message = callback?.message || update.message || null;\n" +
-        "const text = String(message?.text || '').trim();\n" +
+        "let text = String(message?.text || '').trim();\n" +
+        "if (/^\\/dzisiaj(?:@\\w+)?$/i.test(text)) text = 'pokaż zadania na dziś';\n" +
+        "else if (/^\\/zalegle(?:@\\w+)?$/i.test(text)) text = 'pokaż zaległe zadania';\n" +
         "const callbackData = String(callback?.data || '');\n" +
         "let route = 'create';\n" +
         "let draftId = '';\n" +
@@ -55,7 +57,7 @@ const normalizeUpdate = node({
         "else {\n" +
         "  const link = text.match(/^\\/(?:start|polacz)\\s+([A-Z0-9]{6,20})$/i);\n" +
         "  if (link) { route = 'link'; linkCode = link[1].toUpperCase(); }\n" +
-        "  else if (!text || /^\\/(?:start|pomoc|help)$/i.test(text)) route = 'help';\n" +
+        "  else if (!text || /^\\/(?:start|pomoc|help|dodaj)(?:@\\w+)?$/i.test(text)) route = 'help';\n" +
         "}\n" +
         "return { json: { route, text, draftId, linkCode, telegramUserId: String(callback?.from?.id || message?.from?.id || ''), chatId: String(message?.chat?.id || ''), callbackQueryId: String(callback?.id || ''), sourceEventId: 'telegram-update-' + String(update.update_id || '') } };",
     },
@@ -560,11 +562,13 @@ const helpReply = node({
       chatId: expr("{{ $json.chatId }}"),
       text:
         "Tasker przez Telegram\n\n" +
-        "1. W ustawieniach Taskera wygeneruj kod połączenia.\n" +
-        "2. Wyślij: /polacz KOD\n" +
-        "3. Pisz naturalnie, np.: Dodaj dla Michała zadanie oddzwonić jutro o 15:00.\n" +
-        "4. Możesz też napisać: oznacz oddzwonić jako zrobione; przełóż raport na poniedziałek 9:00; pokaż zadania na dziś; pokaż zaległe.\n" +
-        "5. Operacje zmieniające zadania potwierdzasz przyciskiem.",
+        "/dzisiaj — zadania na dziś\n" +
+        "/zalegle — zadania po terminie\n" +
+        "/dodaj — ta instrukcja i przykład\n" +
+        "/pomoc — wszystkie możliwości\n\n" +
+        "Nowe zadanie możesz wpisać lub nagrać naturalnie, np.: Dodaj dla Michała zadanie oddzwonić jutro o 15:00.\n\n" +
+        "Możesz też napisać: oznacz oddzwonić jako zrobione albo przełóż raport na poniedziałek 9:00. Operacje zmieniające zadania potwierdzasz przyciskiem.\n\n" +
+        "Ustawienia: https://tasker.dpkomis.pl/settings",
       additionalFields: { appendAttribution: false, disable_web_page_preview: true },
     },
     credentials: { telegramApi: newCredential("Tasker Telegram Bot") },

@@ -104,3 +104,14 @@ Anulowanie jest idempotentne i nie tworzy zadania. Potwierdzonego lub aktualnie 
 - Identyfikatory Telegrama są mapowane na aktywne konto Taskera.
 - Tasker ponownie waliduje wykonawcę, widoczność i role.
 - n8n nie powinien logować nagłówka `Authorization` ani treści prywatnych zadań.
+
+## Menu komend bota
+
+Workflow mapuje komendy bez udziału modelu AI:
+
+- `/dzisiaj` — lista zadań na dziś,
+- `/zalegle` — lista zadań po terminie,
+- `/dodaj` — instrukcja dodawania zadania tekstem lub głosem,
+- `/pomoc` — pełna skrócona instrukcja i odnośnik do ustawień.
+
+Listę widoczną pod przyciskiem „Menu” ustawia właściciel bota przez `setMyCommands` albo `/setcommands` w BotFatherze. Polecenia nie zawierają polskich znaków, zgodnie z ograniczeniami Telegram Bot API.
