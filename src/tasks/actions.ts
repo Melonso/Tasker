@@ -11,13 +11,15 @@ import {
   auditEvents,
   reminders,
   taskComments,
-  taskDueDateHistory,
+  taskRecurrences,
+  taskShares,
   tasks,
+  teams,
   users,
 } from "@/db/schema";
-import { buildReminderSchedule } from "@/domain/reminders";
+import { nextRecurringDueAt } from "@/domain/recurrence";
 import { canAccessStoredTask } from "./queries";
-import { createTaskForUser, dueAtFromInput, TaskInputError } from "./service";
+import { completeTaskForUser, createTaskForUser, dueAtFromInput, rescheduleTaskForUser, TaskInputError } from "./service";
 
 const taskSchema = z.object({
   title: z.string().trim().min(3, "Tytuł musi zawierać co najmniej 3 znaki.").max(300),
@@ -27,6 +29,8 @@ const taskSchema = z.object({
   priority: z.enum(["LOW", "NORMAL", "HIGH", "URGENT"]),
   dueDate: z.string().regex(/^\d{4}-\d{2}-\d{2}$/).optional().or(z.literal("")),
   dueTime: z.string().regex(/^\d{2}:\d{2}$/).optional().or(z.literal("")),
+  recurrenceFrequency: z.enum(["NONE", "DAILY", "WEEKLY", "MONTHLY"]),
+  recurrenceInterval: z.coerce.number().int().min(1).max(365),
 });
 
 const rescheduleSchema = z.object({
@@ -47,6 +51,12 @@ const commentSchema = z.object({
   body: z.string().trim().min(1, "Komentarz nie może być pusty.").max(2_000),
 });
 
+const recurrenceSchema = z.object({
+  taskId: z.uuid(),
+  frequency: z.enum(["DAILY", "WEEKLY", "MONTHLY"]),
+  interval: z.coerce.number().int().min(1).max(365),
+});
+
 export interface TaskFormState {
   error?: string;
 }
@@ -64,6 +74,8 @@ export async function createTaskAction(
     priority: formData.get("priority"),
     dueDate: formData.get("dueDate"),
     dueTime: formData.get("dueTime"),
+    recurrenceFrequency: formData.get("recurrenceFrequency") || "NONE",
+    recurrenceInterval: formData.get("recurrenceInterval") || 1,
   });
   if (!parsed.success) return { error: parsed.error.issues[0]?.message ?? "Nieprawidłowe dane zadania." };
 
@@ -77,6 +89,14 @@ export async function createTaskAction(
       priority: parsed.data.priority,
       dueAt,
       source: "WEB",
+      recurrenceRule: parsed.data.recurrenceFrequency !== "NONE"
+        ? {
+            frequency: parsed.data.recurrenceFrequency,
+            interval: parsed.data.recurrenceInterval,
+          }
+        : null,
+      shareUserIds: formData.getAll("shareUserIds").map(String),
+      shareTeamIds: formData.getAll("shareTeamIds").map(String),
     });
   } catch (error) {
     if (error instanceof TaskInputError) return { error: error.message };
@@ -103,20 +123,7 @@ async function editableTask(taskId: string, userId: string) {
 export async function completeTaskAction(formData: FormData) {
   const user = await requireUser();
   const taskId = z.uuid().parse(formData.get("taskId"));
-  await editableTask(taskId, user.id);
-
-  const { db } = getDatabaseClient();
-  await db.transaction(async (tx) => {
-    await tx
-      .update(tasks)
-      .set({ status: "COMPLETED", completedAt: new Date(), completedById: user.id, updatedAt: new Date() })
-      .where(eq(tasks.id, taskId));
-    await tx
-      .update(reminders)
-      .set({ status: "CANCELED", updatedAt: new Date() })
-      .where(and(eq(reminders.taskId, taskId), eq(reminders.status, "SCHEDULED")));
-    await tx.insert(auditEvents).values({ actorId: user.id, taskId, action: "TASK_COMPLETED" });
-  });
+  await completeTaskForUser(user, taskId);
   revalidatePath("/");
 }
 
@@ -130,60 +137,7 @@ export async function rescheduleTaskAction(formData: FormData) {
   const task = await editableTask(parsed.taskId, user.id);
   const newDueAt = dueAtFromInput(parsed.dueDate, parsed.dueTime, user);
   if (!newDueAt) throw new Error("Nowy termin jest wymagany.");
-
-  const { db } = getDatabaseClient();
-  const [assigneePreferences] = await db
-    .select({ timeZone: users.timeZone, overdueReminderHour: users.overdueReminderHour })
-    .from(users)
-    .where(eq(users.id, task.assigneeId))
-    .limit(1);
-  if (!assigneePreferences) throw new Error("Nie znaleziono wykonawcy zadania.");
-  await db.transaction(async (tx) => {
-    await tx
-      .update(tasks)
-      .set({ dueAt: newDueAt, updatedAt: new Date(), version: task.version + 1 })
-      .where(eq(tasks.id, task.id));
-    await tx.insert(taskDueDateHistory).values({
-      taskId: task.id,
-      changedById: user.id,
-      previousDueAt: task.dueAt,
-      newDueAt,
-    });
-    await tx
-      .update(reminders)
-      .set({ status: "CANCELED", updatedAt: new Date() })
-      .where(and(eq(reminders.taskId, task.id), eq(reminders.status, "SCHEDULED")));
-
-    const schedule = buildReminderSchedule({
-      dueAt: newDueAt,
-      now: new Date(),
-      timeZone: assigneePreferences.timeZone,
-      overdueReminderHour: assigneePreferences.overdueReminderHour,
-    });
-    if (schedule.length) {
-      await tx
-        .insert(reminders)
-        .values(
-          schedule.map((item) => ({ taskId: task.id, kind: item.kind, scheduledAt: item.scheduledAt })),
-        )
-        .onConflictDoUpdate({
-          target: [reminders.taskId, reminders.kind, reminders.scheduledAt],
-          set: {
-            status: "SCHEDULED",
-            attemptCount: 0,
-            processedAt: null,
-            lastError: null,
-            updatedAt: new Date(),
-          },
-        });
-    }
-    await tx.insert(auditEvents).values({
-      actorId: user.id,
-      taskId: task.id,
-      action: "TASK_RESCHEDULED",
-      metadata: { previousDueAt: task.dueAt?.toISOString() ?? null, newDueAt: newDueAt.toISOString() },
-    });
-  });
+  await rescheduleTaskForUser(user, task.id, newDueAt);
   revalidatePath("/");
   revalidatePath(`/tasks/${task.id}`);
 }
@@ -262,4 +216,121 @@ export async function addTaskCommentAction(formData: FormData) {
     });
   });
   revalidatePath(`/tasks/${parsed.taskId}`);
+}
+
+export async function updateTaskRecurrenceAction(formData: FormData) {
+  const user = await requireUser();
+  const parsed = recurrenceSchema.parse({
+    taskId: formData.get("taskId"),
+    frequency: formData.get("frequency"),
+    interval: formData.get("interval"),
+  });
+  const task = await editableTask(parsed.taskId, user.id);
+  if (task.authorId !== user.id) throw new Error("Tylko autor może zmienić cykl zadania.");
+  if (!task.dueAt) throw new Error("Zadanie cykliczne musi mieć termin.");
+  const { db } = getDatabaseClient();
+  const [assignee] = await db
+    .select({ timeZone: users.timeZone })
+    .from(users)
+    .where(eq(users.id, task.assigneeId))
+    .limit(1);
+  if (!assignee) throw new Error("Nie znaleziono wykonawcy zadania.");
+  const rule = { frequency: parsed.frequency, interval: parsed.interval };
+  await db.transaction(async (tx) => {
+    await tx
+      .insert(taskRecurrences)
+      .values({
+        taskId: task.id,
+        rule,
+        nextOccurrenceAt: nextRecurringDueAt(task.dueAt!, rule, assignee.timeZone),
+        isPaused: false,
+      })
+      .onConflictDoUpdate({
+        target: taskRecurrences.taskId,
+        set: {
+          rule,
+          nextOccurrenceAt: nextRecurringDueAt(task.dueAt!, rule, assignee.timeZone),
+          isPaused: false,
+          updatedAt: new Date(),
+        },
+      });
+    await tx.insert(auditEvents).values({
+      actorId: user.id,
+      taskId: task.id,
+      action: "TASK_RECURRENCE_UPDATED",
+      metadata: { rule },
+    });
+  });
+  revalidatePath("/");
+  revalidatePath(`/tasks/${task.id}`);
+}
+
+async function setTaskRecurrencePaused(formData: FormData, paused: boolean) {
+  const user = await requireUser();
+  const { taskId } = taskIdSchema.parse({ taskId: formData.get("taskId") });
+  const task = await editableTask(taskId, user.id);
+  if (task.authorId !== user.id) throw new Error("Tylko autor może wstrzymać cykl zadania.");
+  const { db } = getDatabaseClient();
+  const [updated] = await db
+    .update(taskRecurrences)
+    .set({ isPaused: paused, updatedAt: new Date() })
+    .where(eq(taskRecurrences.taskId, task.id))
+    .returning({ taskId: taskRecurrences.taskId });
+  if (!updated) throw new Error("To zadanie nie ma ustawionego cyklu.");
+  await db.insert(auditEvents).values({
+    actorId: user.id,
+    taskId: task.id,
+    action: paused ? "TASK_RECURRENCE_PAUSED" : "TASK_RECURRENCE_RESUMED",
+  });
+  revalidatePath("/");
+  revalidatePath(`/tasks/${task.id}`);
+}
+
+export async function pauseTaskRecurrenceAction(formData: FormData) {
+  await setTaskRecurrencePaused(formData, true);
+}
+
+export async function resumeTaskRecurrenceAction(formData: FormData) {
+  await setTaskRecurrencePaused(formData, false);
+}
+
+export async function updateTaskSharesAction(formData: FormData) {
+  const user = await requireUser();
+  const taskId = z.uuid().parse(formData.get("taskId"));
+  const task = await editableTask(taskId, user.id);
+  if (task.authorId !== user.id) throw new Error("Tylko autor może zmienić udostępnienie.");
+  if (task.visibility !== "SHARED") throw new Error("To zadanie nie ma widoczności udostępnionej.");
+  const userIds = z.array(z.uuid()).parse(formData.getAll("shareUserIds").map(String));
+  const teamIds = z.array(z.uuid()).parse(formData.getAll("shareTeamIds").map(String));
+  const uniqueUserIds = [...new Set(userIds)].filter((id) => id !== task.authorId && id !== task.assigneeId);
+  const uniqueTeamIds = [...new Set(teamIds)];
+  if (!uniqueUserIds.length && !uniqueTeamIds.length) {
+    throw new Error("Wybierz przynajmniej jedną osobę lub zespół.");
+  }
+  const { db } = getDatabaseClient();
+  const [availableUsers, availableTeams] = await Promise.all([
+    uniqueUserIds.length
+      ? db.select({ id: users.id }).from(users).where(and(inArray(users.id, uniqueUserIds), eq(users.isActive, true)))
+      : Promise.resolve([]),
+    uniqueTeamIds.length
+      ? db.select({ id: teams.id }).from(teams).where(and(inArray(teams.id, uniqueTeamIds), eq(teams.createdById, user.id)))
+      : Promise.resolve([]),
+  ]);
+  if (availableUsers.length !== uniqueUserIds.length || availableTeams.length !== uniqueTeamIds.length) {
+    throw new Error("Co najmniej jeden odbiorca nie jest dostępny.");
+  }
+  await db.transaction(async (tx) => {
+    await tx.delete(taskShares).where(eq(taskShares.taskId, task.id));
+    await tx.insert(taskShares).values([
+      ...uniqueUserIds.map((userId) => ({ taskId: task.id, userId })),
+      ...uniqueTeamIds.map((teamId) => ({ taskId: task.id, teamId })),
+    ]);
+    await tx.insert(auditEvents).values({
+      actorId: user.id,
+      taskId: task.id,
+      action: "TASK_SHARES_UPDATED",
+      metadata: { sharedUsers: uniqueUserIds.length, sharedTeams: uniqueTeamIds.length },
+    });
+  });
+  revalidatePath(`/tasks/${task.id}`);
 }

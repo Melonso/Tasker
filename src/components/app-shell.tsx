@@ -36,6 +36,7 @@ export function AppShell({
     pathname === "/notifications" ||
     pathname === "/settings" ||
     pathname === "/admin" ||
+    pathname === "/teams" ||
     (pathname === "/" && ["recurring", "done"].includes(activeView ?? ""));
 
   return (
@@ -81,6 +82,12 @@ export function AppShell({
             <Link className={pathname === "/admin" ? "nav-link active" : "nav-link"} href="/admin">
               <span aria-hidden="true">◇</span>
               Administracja
+            </Link>
+          ) : null}
+          {user.roles.includes("BUSINESS_OWNER") ? (
+            <Link className={pathname === "/teams" ? "nav-link active" : "nav-link"} href="/teams">
+              <span aria-hidden="true">◎</span>
+              Zespoły
             </Link>
           ) : null}
           <div className="user-chip">
@@ -155,6 +162,11 @@ export function AppShell({
                 {user.roles.includes("APP_ADMIN") ? (
                   <Link className={pathname === "/admin" ? "mobile-menu-link active" : "mobile-menu-link"} href="/admin">
                     <span aria-hidden="true">◇</span>Administracja
+                  </Link>
+                ) : null}
+                {user.roles.includes("BUSINESS_OWNER") ? (
+                  <Link className={pathname === "/teams" ? "mobile-menu-link active" : "mobile-menu-link"} href="/teams">
+                    <span aria-hidden="true">◎</span>Zespoły
                   </Link>
                 ) : null}
                 <form action={logoutAction}>

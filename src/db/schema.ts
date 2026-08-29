@@ -117,9 +117,12 @@ export const userRoles = pgTable(
 export const teams = pgTable("teams", {
   id: uuid("id").defaultRandom().primaryKey(),
   name: varchar("name", { length: 160 }).notNull(),
+  createdById: uuid("created_by_id")
+    .notNull()
+    .references(() => users.id),
   isExternal: boolean("is_external").default(false).notNull(),
   ...timestamps,
-});
+}, (table) => [uniqueIndex("teams_creator_name_unique").on(table.createdById, table.name)]);
 
 export const teamMembers = pgTable(
   "team_members",
@@ -175,7 +178,11 @@ export const taskShares = pgTable(
     teamId: uuid("team_id").references(() => teams.id, { onDelete: "cascade" }),
     createdAt: timestamp("created_at", { withTimezone: true }).defaultNow().notNull(),
   },
-  (table) => [index("task_shares_task_idx").on(table.taskId)],
+  (table) => [
+    index("task_shares_task_idx").on(table.taskId),
+    uniqueIndex("task_shares_task_user_unique").on(table.taskId, table.userId),
+    uniqueIndex("task_shares_task_team_unique").on(table.taskId, table.teamId),
+  ],
 );
 
 export const taskComments = pgTable(
@@ -199,8 +206,10 @@ export const taskRecurrences = pgTable("task_recurrences", {
   taskId: uuid("task_id")
     .primaryKey()
     .references(() => tasks.id, { onDelete: "cascade" }),
+  seriesId: uuid("series_id").defaultRandom().notNull(),
   rule: jsonb("rule").$type<{ frequency: "DAILY" | "WEEKLY" | "MONTHLY"; interval: number }>().notNull(),
   nextOccurrenceAt: timestamp("next_occurrence_at", { withTimezone: true }),
+  isPaused: boolean("is_paused").default(false).notNull(),
   createdAt: timestamp("created_at", { withTimezone: true }).defaultNow().notNull(),
   updatedAt: timestamp("updated_at", { withTimezone: true }).defaultNow().notNull(),
 });
@@ -275,6 +284,19 @@ export const notificationDeliveries = pgTable(
     ...timestamps,
   },
   (table) => [uniqueIndex("notification_delivery_idempotency_unique").on(table.idempotencyKey)],
+);
+
+export const notificationPreferences = pgTable(
+  "notification_preferences",
+  {
+    userId: uuid("user_id")
+      .notNull()
+      .references(() => users.id, { onDelete: "cascade" }),
+    channel: notificationChannelEnum("channel").notNull(),
+    enabled: boolean("enabled").default(true).notNull(),
+    updatedAt: timestamp("updated_at", { withTimezone: true }).defaultNow().notNull(),
+  },
+  (table) => [primaryKey({ columns: [table.userId, table.channel] })],
 );
 
 export const pushSubscriptions = pgTable(
@@ -366,6 +388,16 @@ export interface CreateTaskDraftPayload {
   clarification: string | null;
 }
 
+export interface TaskActionDraftPayload {
+  intent: "COMPLETE_TASK" | "RESCHEDULE_TASK";
+  taskId: string | null;
+  taskTitle: string | null;
+  dueAt: string | null;
+  clarification: string | null;
+}
+
+export type TaskCommandDraftPayload = CreateTaskDraftPayload | TaskActionDraftPayload;
+
 export const taskCommandDrafts = pgTable(
   "task_command_drafts",
   {
@@ -376,7 +408,7 @@ export const taskCommandDrafts = pgTable(
     source: varchar("source", { length: 40 }).default("TELEGRAM").notNull(),
     sourceEventId: varchar("source_event_id", { length: 200 }).notNull(),
     status: commandDraftStatusEnum("status").default("DRAFT").notNull(),
-    payload: jsonb("payload").$type<CreateTaskDraftPayload>().notNull(),
+    payload: jsonb("payload").$type<TaskCommandDraftPayload>().notNull(),
     taskId: uuid("task_id").references(() => tasks.id, { onDelete: "set null" }),
     expiresAt: timestamp("expires_at", { withTimezone: true }).notNull(),
     confirmedAt: timestamp("confirmed_at", { withTimezone: true }),
@@ -436,3 +468,29 @@ export const workerHeartbeats = pgTable("worker_heartbeats", {
   lastSeenAt: timestamp("last_seen_at", { withTimezone: true }).defaultNow().notNull(),
   updatedAt: timestamp("updated_at", { withTimezone: true }).defaultNow().notNull(),
 });
+
+export const pilotPrograms = pgTable("pilot_programs", {
+  id: uuid("id").defaultRandom().primaryKey(),
+  createdById: uuid("created_by_id")
+    .notNull()
+    .references(() => users.id),
+  status: varchar("status", { length: 20 }).default("ACTIVE").notNull(),
+  startedAt: timestamp("started_at", { withTimezone: true }).defaultNow().notNull(),
+  endsAt: timestamp("ends_at", { withTimezone: true }).notNull(),
+  completedAt: timestamp("completed_at", { withTimezone: true }),
+  ...timestamps,
+});
+
+export const pilotParticipants = pgTable(
+  "pilot_participants",
+  {
+    pilotId: uuid("pilot_id")
+      .notNull()
+      .references(() => pilotPrograms.id, { onDelete: "cascade" }),
+    userId: uuid("user_id")
+      .notNull()
+      .references(() => users.id, { onDelete: "cascade" }),
+    joinedAt: timestamp("joined_at", { withTimezone: true }).defaultNow().notNull(),
+  },
+  (table) => [primaryKey({ columns: [table.pilotId, table.userId] })],
+);

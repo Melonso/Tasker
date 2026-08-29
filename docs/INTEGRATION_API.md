@@ -37,7 +37,7 @@ Content-Type: application/json
 
 Kod jest przechowywany wyłącznie jako hash, działa raz i nie może przejąć Telegrama już przypisanego do innego konta.
 
-## Utworzenie szkicu zadania
+## Polecenia z Telegrama
 
 ```http
 POST /api/integrations/commands/drafts
@@ -58,6 +58,18 @@ Content-Type: application/json
 ```
 
 `sourceEventId` zapewnia idempotencję ponowionych aktualizacji Telegrama. Tasker sam rozpoznaje wykonawcę wśród osób dostępnych użytkownikowi. Brak lub niejednoznaczna osoba zwraca stan `NEEDS_CLARIFICATION`. Szkic wygasa po 30 minutach.
+
+Ten sam endpoint obsługuje także bezpieczne operacje na istniejących zadaniach:
+
+```json
+{ "telegramUserId": "123456789", "sourceEventId": "telegram-update-98766", "intent": "COMPLETE_TASK", "taskQuery": "wysłać raport" }
+```
+
+```json
+{ "telegramUserId": "123456789", "sourceEventId": "telegram-update-98767", "intent": "RESCHEDULE_TASK", "taskQuery": "wysłać raport", "dueDate": "2026-09-01", "dueTime": "09:00" }
+```
+
+Listy `LIST_TODAY` i `LIST_OVERDUE` zwracają od razu `kind: SUMMARY` i maksymalnie 20 zadań. Utworzenie, zakończenie i przesunięcie zwracają `kind: DRAFT`.
 
 ## Potwierdzenie szkicu
 
@@ -88,7 +100,7 @@ Anulowanie jest idempotentne i nie tworzy zadania. Potwierdzonego lub aktualnie 
 ## Zasady dla workflow AI
 
 - Model przygotowuje dane, ale nie otrzymuje dostępu do bazy.
-- Kompletny szkic można zatwierdzić lub anulować ręcznie; brak reakcji powoduje automatyczne zatwierdzenie po 10 minutach. Szkice wymagające doprecyzowania nie są zatwierdzane automatycznie.
+- Kompletny szkic można zatwierdzić lub anulować ręcznie. Brak reakcji powoduje automatyczne zatwierdzenie po 10 minutach tylko przy tworzeniu zadania. Zakończenie i przesunięcie terminu zawsze wymagają ręcznego potwierdzenia.
 - Identyfikatory Telegrama są mapowane na aktywne konto Taskera.
 - Tasker ponownie waliduje wykonawcę, widoczność i role.
 - n8n nie powinien logować nagłówka `Authorization` ani treści prywatnych zadań.

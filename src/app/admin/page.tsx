@@ -1,4 +1,4 @@
-import { and, count, eq, sql } from "drizzle-orm";
+import { and, count, eq, gte, sql } from "drizzle-orm";
 
 import { requireRole } from "@/auth/session";
 import { InvitationForm } from "@/components/invitation-form";
@@ -6,13 +6,17 @@ import { UserAvatar } from "@/components/user-avatar";
 import { getDatabaseClient } from "@/db/client";
 import {
   notificationDeliveries,
+  pilotParticipants,
+  pilotPrograms,
   reminders,
   roles,
   telegramConnections,
+  tasks,
   userRoles,
   users,
   workerHeartbeats,
 } from "@/db/schema";
+import { finishPilotAction, startPilotAction } from "@/pilot/actions";
 
 const roleLabels: Record<string, string> = {
   APP_ADMIN: "Administrator aplikacji",
@@ -26,7 +30,7 @@ export const metadata = { title: "Administracja" };
 export default async function AdminPage() {
   await requireRole("APP_ADMIN");
   const { db } = getDatabaseClient();
-  const [rows, [worker], [telegramCount], [failedReminderCount], [failedDeliveryCount]] = await Promise.all([
+  const [rows, [worker], [telegramCount], [failedReminderCount], [failedDeliveryCount], [pilot]] = await Promise.all([
     db
       .select({
         id: users.id,
@@ -67,6 +71,7 @@ export default async function AdminPage() {
           sql`${notificationDeliveries.updatedAt} >= now() - interval '24 hours'`,
         ),
       ),
+    db.select().from(pilotPrograms).orderBy(sql`${pilotPrograms.startedAt} desc`).limit(1),
   ]);
   const usersById = new Map<string, { id: string; email: string; firstName: string; lastName: string; avatarDataUrl: string | null; isActive: boolean; roles: string[] }>();
   for (const row of rows) {
@@ -77,6 +82,20 @@ export default async function AdminPage() {
   const storedUsers = [...usersById.values()];
   const workerHealthy = worker?.healthy ?? false;
   const errorCount = (failedReminderCount?.value ?? 0) + (failedDeliveryCount?.value ?? 0);
+  const pilotMetrics = pilot ? await Promise.all([
+    db.select({ value: count() }).from(pilotParticipants).where(eq(pilotParticipants.pilotId, pilot.id)),
+    db.select({ value: count() }).from(tasks).where(gte(tasks.createdAt, pilot.startedAt)),
+    db.select({
+      total: count(),
+      sent: sql<number>`count(*) filter (where ${notificationDeliveries.status} = 'SENT')`,
+    }).from(notificationDeliveries).where(gte(notificationDeliveries.createdAt, pilot.startedAt)),
+  ]) : null;
+  const pilotParticipantsCount = pilotMetrics?.[0][0]?.value ?? 0;
+  const pilotTasksCount = pilotMetrics?.[1][0]?.value ?? 0;
+  const pilotDeliveries = pilotMetrics?.[2][0];
+  const deliverySuccess = Number(pilotDeliveries?.total ?? 0) > 0
+    ? Math.round((Number(pilotDeliveries?.sent ?? 0) / Number(pilotDeliveries?.total ?? 1)) * 100)
+    : 100;
   return (
     <div className="page-stack narrow-page">
       <header className="page-header">
@@ -126,6 +145,26 @@ export default async function AdminPage() {
             </div>
           ))}
         </div>
+      </section>
+
+      <section className="panel pilot-panel">
+        <div className="panel-heading">
+          <div><p className="eyebrow">Test operacyjny</p><h2>Pilotaż 14-dniowy</h2></div>
+          <span className={`status-badge ${pilot?.status === "ACTIVE" ? "green" : "neutral"}`}>{pilot?.status === "ACTIVE" ? "W toku" : pilot ? "Zakończony" : "Nieuruchomiony"}</span>
+        </div>
+        {pilot ? (
+          <div className="pilot-content">
+            <div className="pilot-metrics">
+              <span><strong>{pilotParticipantsCount}</strong><small>uczestników</small></span>
+              <span><strong>{pilotTasksCount}</strong><small>zadań</small></span>
+              <span><strong>{deliverySuccess}%</strong><small>skutecznych dostaw</small></span>
+            </div>
+            <p>Start: {pilot.startedAt.toLocaleString("pl-PL", { timeZone: "Europe/Warsaw" })} · planowany koniec: {pilot.endsAt.toLocaleString("pl-PL", { timeZone: "Europe/Warsaw" })}</p>
+            {pilot.status === "ACTIVE" ? <form action={finishPilotAction}><button className="secondary-button" type="submit">Zakończ pilotaż</button></form> : null}
+          </div>
+        ) : (
+          <form action={startPilotAction} className="pilot-content"><p>Uruchomi test dla Pawła, Mateusza, Michała i Nadii oraz zacznie zbierać podstawowe wskaźniki.</p><button className="primary-button" type="submit">Uruchom pilotaż</button></form>
+        )}
       </section>
     </div>
   );

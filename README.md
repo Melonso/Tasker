@@ -26,7 +26,7 @@ Wdrożona wersja produkcyjna działa pod `https://tasker.dpkomis.pl`. Zrealizowa
 
 - aplikacja Next.js 16 i React 19,
 - responsywny pulpit, ustawienia użytkownika, avatary i administracja,
-- schemat 20 tabel PostgreSQL oraz pierwsza migracja Drizzle,
+- wersjonowany schemat PostgreSQL i migracje Drizzle,
 - seed czterech użytkowników pilotażowych i ich ról,
 - reguły przypomnień z obsługą strefy `Europe/Warsaw`,
 - osobny worker oparty na trwałej kolejce PostgreSQL,
@@ -41,11 +41,15 @@ Wdrożona wersja produkcyjna działa pod `https://tasker.dpkomis.pl`. Zrealizowa
 - PWA i Web Push przetestowane na prawdziwej przeglądarce,
 - synchronizacja Google Calendar przez OAuth,
 - Telegram tekstowy i głosowy z AI, dynamiczną listą wykonawców i bezpiecznym szkicem,
+- komendy Telegrama do kończenia, przesuwania i wyświetlania zadań,
 - automatyczne zatwierdzanie kompletnego szkicu po 10 minutach,
-- automatyczne kopie bazy, test odtworzenia i monitoring produkcji przez n8n,
+- zadania cykliczne dzienne, tygodniowe i miesięczne z pauzowaniem,
+- zespoły, ręczne udostępnianie zadań i preferencje kanałów powiadomień,
+- automatyczne kopie bazy, szyfrowany backup offsite w Google Drive, test odtworzenia i monitoring przez n8n,
+- aktywny 14-dniowy pilotaż z metrykami w panelu administratora,
 - wdrożony i zweryfikowany stos produkcyjny na `127.0.0.1:8090` za Cloudflare Tunnel.
 
-Do dalszego rozwoju pozostają przede wszystkim zadania cykliczne, pełny zestaw poleceń Telegrama, preferencje kanałów, zespoły i jawne udostępnienia.
+Do operacyjnego domknięcia pozostaje obserwacja wyników trwającego pilotażu i poprawki wynikające z użycia przez cztery osoby.
 
 ## Uruchomienie bez Dockera
 

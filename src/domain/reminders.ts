@@ -15,7 +15,7 @@ const PRE_DUE_OFFSETS = [
   { kind: "ONE_HOUR_BEFORE", milliseconds: 60 * 60 * 1000 },
 ] as const;
 
-function partsInTimeZone(date: Date, timeZone: string) {
+export function dateTimePartsInZone(date: Date, timeZone: string) {
   const formatter = new Intl.DateTimeFormat("en-CA", {
     timeZone,
     year: "numeric",
@@ -58,7 +58,7 @@ export function zonedDateTimeToUtc(
   let candidate = new Date(desiredAsUtc);
 
   for (let attempt = 0; attempt < 3; attempt += 1) {
-    const actual = partsInTimeZone(candidate, timeZone);
+    const actual = dateTimePartsInZone(candidate, timeZone);
     const actualAsUtc = Date.UTC(
       actual.year,
       actual.month - 1,
@@ -76,7 +76,7 @@ export function zonedDateTimeToUtc(
 }
 
 export function nextDailyReminder(now: Date, timeZone: string, hour: number) {
-  const localNow = partsInTimeZone(now, timeZone);
+  const localNow = dateTimePartsInZone(now, timeZone);
   let candidate = zonedDateTimeToUtc(
     { year: localNow.year, month: localNow.month, day: localNow.day, hour },
     timeZone,

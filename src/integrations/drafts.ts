@@ -1,12 +1,15 @@
-import { and, eq } from "drizzle-orm";
+import { and, asc, eq, inArray, or } from "drizzle-orm";
 
 import type { AuthenticatedUser } from "@/auth/session";
 import { getDatabaseClient } from "@/db/client";
 import {
   auditEvents,
   type CreateTaskDraftPayload,
+  type TaskActionDraftPayload,
   taskCommandDrafts,
+  tasks,
 } from "@/db/schema";
+import { dateTimePartsInZone, zonedDateTimeToUtc } from "@/domain/reminders";
 import { listAssignableUsers } from "@/tasks/queries";
 import { dueAtFromInput } from "@/tasks/service";
 
@@ -22,6 +25,14 @@ export interface CreateTaskDraftInput {
   dueTime?: string;
   visibility: "PRIVATE" | "COMPANY" | "SHARED";
   priority: "LOW" | "NORMAL" | "HIGH" | "URGENT";
+}
+
+export interface CreateTaskActionDraftInput {
+  sourceEventId: string;
+  intent: "COMPLETE_TASK" | "RESCHEDULE_TASK";
+  taskQuery: string;
+  dueDate?: string;
+  dueTime?: string;
 }
 
 function normalizePerson(value: string) {
@@ -106,8 +117,111 @@ export async function createTaskDraft(user: AuthenticatedUser, input: CreateTask
   return draft;
 }
 
+export async function createTaskActionDraft(user: AuthenticatedUser, input: CreateTaskActionDraftInput) {
+  const { db } = getDatabaseClient();
+  const candidates = await db
+    .select({ id: tasks.id, title: tasks.title })
+    .from(tasks)
+    .where(
+      and(
+        inArray(tasks.status, ["OPEN", "WAITING"]),
+        or(eq(tasks.authorId, user.id), eq(tasks.assigneeId, user.id)),
+      ),
+    )
+    .orderBy(asc(tasks.dueAt), asc(tasks.createdAt));
+  const query = normalizePerson(input.taskQuery);
+  const exact = candidates.filter((task) => normalizePerson(task.title) === query);
+  const partial = candidates.filter((task) => normalizePerson(task.title).includes(query));
+  const matches = exact.length ? exact : partial;
+  const task = matches.length === 1 ? matches[0] : null;
+  const dueAt = input.intent === "RESCHEDULE_TASK" && input.dueDate
+    ? dueAtFromInput(input.dueDate, input.dueTime, user)
+    : null;
+  let clarification: string | null = null;
+  if (!task) {
+    clarification = matches.length > 1
+      ? `Znaleziono kilka zadań pasujących do „${input.taskQuery}”. Podaj dokładniejszy tytuł.`
+      : `Nie znaleziono aktywnego zadania pasującego do „${input.taskQuery}”.`;
+  } else if (input.intent === "RESCHEDULE_TASK" && !dueAt) {
+    clarification = "Podaj nową datę zadania.";
+  }
+  const payload: TaskActionDraftPayload = {
+    intent: input.intent,
+    taskId: task?.id ?? null,
+    taskTitle: task?.title ?? null,
+    dueAt: dueAt?.toISOString() ?? null,
+    clarification,
+  };
+  const status = clarification ? "NEEDS_CLARIFICATION" : "DRAFT";
+  const [inserted] = await db
+    .insert(taskCommandDrafts)
+    .values({
+      userId: user.id,
+      source: "TELEGRAM",
+      sourceEventId: input.sourceEventId,
+      status,
+      payload,
+      expiresAt: taskDraftExpiresAt(),
+    })
+    .onConflictDoNothing({ target: [taskCommandDrafts.source, taskCommandDrafts.sourceEventId] })
+    .returning({ id: taskCommandDrafts.id });
+  const [draft] = await db
+    .select()
+    .from(taskCommandDrafts)
+    .where(and(eq(taskCommandDrafts.source, "TELEGRAM"), eq(taskCommandDrafts.sourceEventId, input.sourceEventId)))
+    .limit(1);
+  if (!draft || draft.userId !== user.id) throw new Error("Source event is already assigned.");
+  if (inserted) {
+    await db.insert(auditEvents).values({
+      actorId: user.id,
+      taskId: task?.id,
+      action: "TASK_DRAFT_CREATED",
+      metadata: { draftId: draft.id, source: "TELEGRAM", status, intent: input.intent },
+    });
+  }
+  return draft;
+}
+
+export async function telegramTaskSummary(user: AuthenticatedUser, view: "TODAY" | "OVERDUE") {
+  const now = new Date();
+  const local = dateTimePartsInZone(now, user.timeZone);
+  const start = zonedDateTimeToUtc({ year: local.year, month: local.month, day: local.day, hour: 0 }, user.timeZone);
+  const nextDate = new Date(Date.UTC(local.year, local.month - 1, local.day + 1));
+  const end = zonedDateTimeToUtc(
+    { year: nextDate.getUTCFullYear(), month: nextDate.getUTCMonth() + 1, day: nextDate.getUTCDate(), hour: 0 },
+    user.timeZone,
+  );
+  const { db } = getDatabaseClient();
+  const rows = await db
+    .select({ id: tasks.id, title: tasks.title, dueAt: tasks.dueAt, priority: tasks.priority })
+    .from(tasks)
+    .where(and(eq(tasks.assigneeId, user.id), inArray(tasks.status, ["OPEN", "WAITING"])))
+    .orderBy(asc(tasks.dueAt), asc(tasks.createdAt));
+  return rows
+    .filter((task) => task.dueAt && (view === "OVERDUE"
+      ? task.dueAt < now
+      : task.dueAt >= start && task.dueAt < end))
+    .slice(0, 20);
+}
+
 export function draftResponse(draft: typeof taskCommandDrafts.$inferSelect) {
+  if (draft.payload.intent !== "CREATE_TASK") {
+    return {
+      kind: "DRAFT" as const,
+      id: draft.id,
+      status: draft.status,
+      expiresAt: draft.expiresAt.toISOString(),
+      preview: {
+        intent: draft.payload.intent,
+        title: draft.payload.taskTitle,
+        dueAt: draft.payload.dueAt,
+      },
+      clarification: draft.payload.clarification,
+      taskId: draft.taskId ?? draft.payload.taskId,
+    };
+  }
   return {
+    kind: "DRAFT" as const,
     id: draft.id,
     status: draft.status,
     expiresAt: draft.expiresAt.toISOString(),

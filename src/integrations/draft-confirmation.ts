@@ -5,10 +5,16 @@ import { getDatabaseClient } from "@/db/client";
 import {
   auditEvents,
   notificationDeliveries,
+  notificationPreferences,
   notifications,
   taskCommandDrafts,
 } from "@/db/schema";
-import { createTaskForUser, TaskInputError } from "@/tasks/service";
+import {
+  completeTaskForUser,
+  createTaskForUser,
+  rescheduleTaskForUser,
+  TaskInputError,
+} from "@/tasks/service";
 
 export type ClaimedTaskDraft = typeof taskCommandDrafts.$inferSelect;
 
@@ -18,17 +24,33 @@ export async function confirmClaimedTaskDraft(
   mode: "MANUAL" | "AUTO",
 ) {
   if (draft.status !== "PROCESSING") throw new Error("Szkic nie został przejęty do przetwarzania.");
-  if (!draft.payload.assigneeId) throw new TaskInputError("Szkic nie ma rozpoznanego wykonawcy.");
-
-  const taskId = await createTaskForUser(user, {
-    title: draft.payload.title,
-    description: draft.payload.description,
-    assigneeId: draft.payload.assigneeId,
-    visibility: draft.payload.visibility,
-    priority: draft.payload.priority,
-    dueAt: draft.payload.dueAt ? new Date(draft.payload.dueAt) : null,
-    source: "TELEGRAM",
-  });
+  const payload = draft.payload;
+  let taskId: string;
+  let taskTitle: string;
+  if (payload.intent === "CREATE_TASK") {
+    if (!payload.assigneeId) throw new TaskInputError("Szkic nie ma rozpoznanego wykonawcy.");
+    taskTitle = payload.title;
+    taskId = await createTaskForUser(user, {
+      title: payload.title,
+      description: payload.description,
+      assigneeId: payload.assigneeId,
+      visibility: payload.visibility,
+      priority: payload.priority,
+      dueAt: payload.dueAt ? new Date(payload.dueAt) : null,
+      source: "TELEGRAM",
+    });
+  } else {
+    if (mode === "AUTO") throw new TaskInputError("Automatyczne zatwierdzanie dotyczy tylko tworzenia zadań.");
+    if (!payload.taskId) throw new TaskInputError("Szkic nie ma rozpoznanego zadania.");
+    taskId = payload.taskId;
+    taskTitle = payload.taskTitle ?? "zadanie";
+    if (payload.intent === "COMPLETE_TASK") {
+      await completeTaskForUser(user, taskId);
+    } else {
+      if (!payload.dueAt) throw new TaskInputError("Szkic nie ma nowego terminu.");
+      await rescheduleTaskForUser(user, taskId, new Date(payload.dueAt));
+    }
+  }
   const { db } = getDatabaseClient();
   return db.transaction(async (tx) => {
     const now = new Date();
@@ -42,17 +64,22 @@ export async function confirmClaimedTaskDraft(
       actorId: user.id,
       taskId,
       action: mode === "AUTO" ? "TASK_DRAFT_AUTO_CONFIRMED" : "TASK_DRAFT_CONFIRMED",
-      metadata: { draftId: draft.id, source: "TELEGRAM", mode },
+      metadata: { draftId: draft.id, source: "TELEGRAM", mode, intent: payload.intent },
     });
 
     if (mode === "AUTO") {
+      const preferenceRows = await tx
+        .select({ channel: notificationPreferences.channel, enabled: notificationPreferences.enabled })
+        .from(notificationPreferences)
+        .where(eq(notificationPreferences.userId, user.id));
+      const preferenceByChannel = new Map(preferenceRows.map((preference) => [preference.channel, preference.enabled]));
       const [notification] = await tx
         .insert(notifications)
         .values({
           userId: user.id,
           taskId,
           title: "Zadanie zatwierdzone automatycznie",
-          body: `Szkic „${draft.payload.title}” nie został odrzucony w ciągu 10 minut, więc Tasker utworzył zadanie.`,
+          body: `Szkic „${taskTitle}” nie został odrzucony w ciągu 10 minut, więc Tasker utworzył zadanie.`,
         })
         .returning({ id: notifications.id });
       if (!notification) throw new Error("Nie udało się utworzyć potwierdzenia automatycznego zadania.");
@@ -68,13 +95,13 @@ export async function confirmClaimedTaskDraft(
         {
           notificationId: notification.id,
           channel: "TELEGRAM",
-          status: "PENDING",
+          status: (preferenceByChannel.get("TELEGRAM") ?? true) ? "PENDING" : "SKIPPED",
           idempotencyKey: `draft-auto:${draft.id}:TELEGRAM`,
         },
         {
           notificationId: notification.id,
           channel: "WEB_PUSH",
-          status: "PENDING",
+          status: (preferenceByChannel.get("WEB_PUSH") ?? true) ? "PENDING" : "SKIPPED",
           idempotencyKey: `draft-auto:${draft.id}:WEB_PUSH`,
         },
       ]);

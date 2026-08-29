@@ -3,11 +3,12 @@ import { NextResponse } from "next/server";
 import { z } from "zod";
 
 import { getDatabaseClient } from "@/db/client";
-import { auditEvents, taskCommandDrafts } from "@/db/schema";
+import { taskCommandDrafts } from "@/db/schema";
+import { confirmClaimedTaskDraft } from "@/integrations/draft-confirmation";
 import { draftResponse } from "@/integrations/drafts";
 import { authorizeIntegrationRequest } from "@/integrations/service-auth";
 import { userForTelegramId } from "@/integrations/users";
-import { createTaskForUser, TaskInputError } from "@/tasks/service";
+import { TaskInputError } from "@/tasks/service";
 
 const requestSchema = z.object({ telegramUserId: z.string().trim().min(1).max(80) });
 
@@ -47,32 +48,8 @@ export async function POST(
     .where(and(eq(taskCommandDrafts.id, draft.id), eq(taskCommandDrafts.status, "DRAFT")))
     .returning();
   if (!claimed) return NextResponse.json({ error: "DRAFT_ALREADY_PROCESSING" }, { status: 409 });
-  if (!claimed.payload.assigneeId) {
-    await db.update(taskCommandDrafts).set({ status: "NEEDS_CLARIFICATION", updatedAt: new Date() }).where(eq(taskCommandDrafts.id, draft.id));
-    return NextResponse.json({ error: "DRAFT_NEEDS_CLARIFICATION" }, { status: 409 });
-  }
-
   try {
-    const taskId = await createTaskForUser(user, {
-      title: claimed.payload.title,
-      description: claimed.payload.description,
-      assigneeId: claimed.payload.assigneeId,
-      visibility: claimed.payload.visibility,
-      priority: claimed.payload.priority,
-      dueAt: claimed.payload.dueAt ? new Date(claimed.payload.dueAt) : null,
-      source: "TELEGRAM",
-    });
-    const [confirmed] = await db
-      .update(taskCommandDrafts)
-      .set({ status: "CONFIRMED", taskId, confirmedAt: new Date(), updatedAt: new Date() })
-      .where(eq(taskCommandDrafts.id, draft.id))
-      .returning();
-    await db.insert(auditEvents).values({
-      actorId: user.id,
-      taskId,
-      action: "TASK_DRAFT_CONFIRMED",
-      metadata: { draftId: draft.id, source: "TELEGRAM" },
-    });
+    const confirmed = await confirmClaimedTaskDraft(claimed, user, "MANUAL");
     return NextResponse.json(draftResponse(confirmed));
   } catch (error) {
     await db.update(taskCommandDrafts).set({ status: "DRAFT", updatedAt: new Date() }).where(eq(taskCommandDrafts.id, draft.id));

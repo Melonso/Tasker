@@ -7,10 +7,15 @@ import {
   addTaskCommentAction,
   cancelTaskAction,
   completeTaskAction,
+  pauseTaskRecurrenceAction,
   resumeTaskAction,
+  resumeTaskRecurrenceAction,
+  updateTaskRecurrenceAction,
+  updateTaskSharesAction,
   waitTaskAction,
 } from "@/tasks/actions";
-import { getTaskDetails } from "@/tasks/queries";
+import { getTaskDetails, listAssignableUsers, listTeamsForSharing } from "@/tasks/queries";
+import { recurrenceLabel } from "@/domain/recurrence";
 
 function dateTime(value: Date | null, timeZone: string) {
   if (!value) return "Brak terminu";
@@ -33,6 +38,11 @@ export default async function TaskDetailsPage({ params }: { params: Promise<{ ta
   const { taskId } = await params;
   const task = await getTaskDetails(user, taskId);
   if (!task) notFound();
+  const [shareUsers, shareTeams] = task.authorId === user.id
+    ? await Promise.all([listAssignableUsers(user), listTeamsForSharing(user)])
+    : [[], []];
+  const sharedUserIds = new Set(task.shares.flatMap((share) => share.userId ? [share.userId] : []));
+  const sharedTeamIds = new Set(task.shares.flatMap((share) => share.teamId ? [share.teamId] : []));
   const editable = task.authorId === user.id || task.assigneeId === user.id;
   const active = task.status === "OPEN" || task.status === "WAITING";
 
@@ -57,6 +67,7 @@ export default async function TaskDetailsPage({ params }: { params: Promise<{ ta
           <div><dt>Termin</dt><dd>{dateTime(task.dueAt, user.timeZone)}</dd></div>
           <div><dt>Widoczność</dt><dd>{task.visibility}</dd></div>
           <div><dt>Priorytet</dt><dd>{task.priority}</dd></div>
+          <div><dt>Cykl</dt><dd>{task.recurrence ? `${recurrenceLabel(task.recurrence.rule)}${task.recurrence.isPaused ? " · wstrzymany" : ""}` : "Jednorazowe"}</dd></div>
         </dl>
         {task.waitingReason ? <div className="waiting-note"><strong>Powód oczekiwania</strong><p>{task.waitingReason}</p></div> : null}
         {editable && active ? (
@@ -88,7 +99,66 @@ export default async function TaskDetailsPage({ params }: { params: Promise<{ ta
             ) : null}
           </div>
         ) : null}
+
+        {task.authorId === user.id && active ? (
+          <div className="detail-config-grid">
+            <form action={updateTaskRecurrenceAction} className="detail-config-card">
+              <input name="taskId" type="hidden" value={task.id} />
+              <strong>Powtarzanie</strong>
+              <label>Częstotliwość
+                <select defaultValue={task.recurrence?.rule.frequency ?? "WEEKLY"} name="frequency">
+                  <option value="DAILY">Codziennie</option>
+                  <option value="WEEKLY">Co tydzień</option>
+                  <option value="MONTHLY">Co miesiąc</option>
+                </select>
+              </label>
+              <label>Co ile jednostek
+                <input defaultValue={task.recurrence?.rule.interval ?? 1} max={365} min={1} name="interval" type="number" />
+              </label>
+              <button className="secondary-button" type="submit">{task.recurrence ? "Zmień cykl" : "Włącz cykl"}</button>
+            </form>
+            {task.recurrence ? (
+              <form action={task.recurrence.isPaused ? resumeTaskRecurrenceAction : pauseTaskRecurrenceAction} className="detail-config-card compact-config-card">
+                <input name="taskId" type="hidden" value={task.id} />
+                <strong>{task.recurrence.isPaused ? "Cykl jest wstrzymany" : "Cykl jest aktywny"}</strong>
+                <p>{task.recurrence.isPaused ? "Wznowienie ponownie utworzy następne zadanie po zakończeniu." : "Wstrzymanie zatrzyma tworzenie kolejnych wystąpień."}</p>
+                <button className="secondary-button" type="submit">{task.recurrence.isPaused ? "Wznów cykl" : "Wstrzymaj cykl"}</button>
+              </form>
+            ) : null}
+          </div>
+        ) : null}
       </section>
+
+      {task.visibility === "SHARED" ? (
+        <section className="panel sharing-panel">
+          <div className="panel-heading"><div><p className="eyebrow">Dostęp</p><h2>Udostępnienie zadania</h2></div></div>
+          {task.authorId === user.id ? (
+            <form action={updateTaskSharesAction} className="sharing-form">
+              <input name="taskId" type="hidden" value={task.id} />
+              <div className="share-options">
+                {shareUsers.filter((person) => person.id !== task.authorId && person.id !== task.assigneeId).map((person) => (
+                  <label key={person.id}>
+                    <input defaultChecked={sharedUserIds.has(person.id)} name="shareUserIds" type="checkbox" value={person.id} />
+                    <UserAvatar avatarDataUrl={person.avatarDataUrl} firstName={person.firstName} lastName={person.lastName} size={30} />
+                    <span>{person.firstName} {person.lastName}</span>
+                  </label>
+                ))}
+                {shareTeams.map((team) => (
+                  <label key={team.id}>
+                    <input defaultChecked={sharedTeamIds.has(team.id)} name="shareTeamIds" type="checkbox" value={team.id} />
+                    <span className="team-mark">Z</span><span>{team.name}</span>
+                  </label>
+                ))}
+              </div>
+              <button className="secondary-button" type="submit">Zapisz udostępnienie</button>
+            </form>
+          ) : (
+            <div className="shared-with-list">
+              {task.shares.map((share) => <span className="muted-chip" key={share.userId ?? share.teamId}>{share.userId ? `${share.userFirstName} ${share.userLastName}` : share.teamName}</span>)}
+            </div>
+          )}
+        </section>
+      ) : null}
 
       <section className="panel comments-panel">
         <div className="panel-heading"><div><p className="eyebrow">Informacja zwrotna</p><h2>Komentarze</h2></div><span className="muted-chip">{task.comments.length}</span></div>

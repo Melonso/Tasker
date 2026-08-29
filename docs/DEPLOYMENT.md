@@ -195,7 +195,11 @@ Minimum produkcyjne:
 - alert, gdy harmonogram przypomnień przestaje być przetwarzany,
 - logi bez tokenów OAuth, nagrań głosowych i treści prywatnych zadań.
 
-Lokalny harmonogram instaluje `deploy/install-operations-cron.sh`: codzienny backup o 02:17, cotygodniową próbę odtworzenia w izolowanej bazie oraz kontrolę zdrowia co 5 minut. Backup jest weryfikowany przez `pg_restore --list`, ma uprawnienia `0600` i retencję 14 dni. Nadal wymagane jest wskazanie szyfrowanego miejsca poza serwerem dla drugiej kopii.
+Lokalny harmonogram instaluje `deploy/install-operations-cron.sh`: codzienny backup o 02:17, zaszyfrowany upload poza serwer o 02:27, cotygodniową próbę odtworzenia w izolowanej bazie oraz kontrolę zdrowia co 5 minut. Backup jest weryfikowany przez `pg_restore --list`, ma uprawnienia `0600` i retencję 14 dni.
+
+Upload poza serwer jest bezpiecznie pomijany do czasu utworzenia chronionego pliku `/home/dpkomis/apps/tasker-prod/.env.offsite-backup` (uprawnienia `0600`). Wymagane są `TASKER_BACKUP_ENCRYPTION_KEY_FILE` oraz `TASKER_OFFSITE_UPLOAD_URL`; opcjonalnie adres może zawierać `{filename}`. Nazwa pliku jest również przekazywana w nagłówku `X-Tasker-Backup-Name`. Opcjonalnie można podać bearer token albo dane Basic Auth. Skrypt szyfruje AES-256-CBC z PBKDF2, wysyła wyłącznie zaszyfrowany plik i sumę SHA-256, po czym usuwa plik tymczasowy.
+
+W produkcji upload kieruje do aktywnego workflow n8n „Tasker — szyfrowany backup offsite”, który zapisuje pliki w osobnym folderze „Tasker Backups” na Google Drive. Pierwszy rzeczywisty zaszyfrowany dump i jego suma zostały przesłane oraz zweryfikowane 2026-08-29. Klucz szyfrowania znajduje się wyłącznie w chronionym katalogu `.secrets` na serwerze Taskera; n8n i Google Drive nigdy go nie otrzymują.
 
 ## 11. Następny krok operacyjny
 

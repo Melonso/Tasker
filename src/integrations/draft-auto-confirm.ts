@@ -32,6 +32,7 @@ async function claimDraftsForAutoConfirmation(limit: number) {
       select id
       from task_command_drafts
       where status = 'DRAFT'
+        and payload->>'intent' = 'CREATE_TASK'
         and created_at <= now() - interval '10 minutes'
         and expires_at > now()
       order by created_at asc

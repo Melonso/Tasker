@@ -137,7 +137,7 @@ const acknowledgeConfirm = node({
       resource: "callback",
       operation: "answerQuery",
       queryId: expr("{{ $json.callbackQueryId }}"),
-      additionalFields: { text: "Tworzę zadanie…", cache_time: 0, show_alert: false },
+      additionalFields: { text: "Wykonuję polecenie…", cache_time: 0, show_alert: false },
     },
     credentials: { telegramApi: newCredential("Tasker Telegram Bot") },
   },
@@ -179,7 +179,7 @@ const confirmReply = node({
       operation: "sendMessage",
       chatId: expr('{{ $("Rozpoznaj rodzaj polecenia").item.json.chatId }}'),
       text: expr(
-        '{{ $json.statusCode >= 200 && $json.statusCode < 300 ? "✅ Zadanie zostało utworzone w Taskerze." : "❌ Nie udało się utworzyć zadania: " + ($json.body?.error ?? "nieznany błąd") }}',
+        '{{ $json.statusCode >= 200 && $json.statusCode < 300 ? ($json.body?.preview?.intent === "COMPLETE_TASK" ? "✅ Zadanie zostało oznaczone jako zrobione." : ($json.body?.preview?.intent === "RESCHEDULE_TASK" ? "✅ Termin zadania został przesunięty." : "✅ Zadanie zostało utworzone w Taskerze.")) : "❌ Nie udało się wykonać polecenia: " + ($json.body?.error ?? "nieznany błąd") }}',
       ),
       additionalFields: { appendAttribution: false, disable_web_page_preview: true },
     },
@@ -288,6 +288,7 @@ const taskParser = outputParser({
         required: [
           "intent",
           "title",
+          "taskQuery",
           "description",
           "assignee",
           "dueDate",
@@ -296,8 +297,9 @@ const taskParser = outputParser({
           "priority",
         ],
         properties: {
-          intent: { type: "string", enum: ["CREATE_TASK"] },
-          title: { type: "string", minLength: 3, maxLength: 300 },
+          intent: { type: "string", enum: ["CREATE_TASK", "COMPLETE_TASK", "RESCHEDULE_TASK", "LIST_TODAY", "LIST_OVERDUE"] },
+          title: { type: "string", maxLength: 300 },
+          taskQuery: { type: "string", maxLength: 300 },
           description: { type: "string", maxLength: 5000 },
           assignee: { type: "string", maxLength: 320 },
           dueDate: { type: "string", description: "YYYY-MM-DD albo pusty ciąg" },
@@ -366,8 +368,11 @@ const taskAgent = node({
         maxIterations: 3,
         returnIntermediateSteps: false,
         systemMessage: expr(
-          "Jesteś precyzyjnym asystentem Taskera. Zamieniasz polskie polecenie na szkic jednego zadania. " +
+          "Jesteś precyzyjnym asystentem Taskera. Rozpoznajesz polecenia dotyczące zadań. " +
           "Nigdy nie tworzysz zadania samodzielnie i niczego nie dopowiadasz poza strukturą. " +
+          "Użyj CREATE_TASK dla nowego zadania, COMPLETE_TASK dla oznaczenia istniejącego jako zrobione, RESCHEDULE_TASK dla zmiany terminu, LIST_TODAY dla listy na dziś i LIST_OVERDUE dla zaległych. " +
+          "Dla COMPLETE_TASK i RESCHEDULE_TASK wpisz rozpoznawalny fragment tytułu w taskQuery, a title pozostaw pusty. Dla list oba pola pozostaw puste. " +
+          "Dla CREATE_TASK wpisz tytuł w title, a taskQuery pozostaw pusty. " +
           "Rozpoznawaj daty względne według podanej daty w strefie Europe/Warsaw. " +
           'Autorem polecenia jest {{ $json.body.author.name }}. Dostępni wykonawcy: {{ $json.body.users.map((user) => user.name).join(", ") }}. ' +
           "Wykonawca to osoba, która ma wykonać czynność, a nie odbiorca, klient, adresat, rozmówca ani osoba występująca tylko w treści zadania. " +
@@ -412,7 +417,7 @@ const createDraft = node({
       contentType: "json",
       specifyBody: "json",
       jsonBody: expr(
-        '{{ { telegramUserId: $("Rozpoznaj rodzaj polecenia").item.json.telegramUserId, sourceEventId: $("Rozpoznaj rodzaj polecenia").item.json.sourceEventId, sourceText: $("Rozpoznaj rodzaj polecenia").item.json.text, intent: $json.output.intent, title: $json.output.title, description: $json.output.description, assignee: $json.output.assignee, ...($json.output.dueDate ? { dueDate: $json.output.dueDate } : {}), ...($json.output.dueDate && $json.output.dueTime ? { dueTime: $json.output.dueTime } : {}), visibility: $json.output.visibility, priority: $json.output.priority } }}',
+        '{{ { telegramUserId: $("Rozpoznaj rodzaj polecenia").item.json.telegramUserId, sourceEventId: $("Rozpoznaj rodzaj polecenia").item.json.sourceEventId, sourceText: $("Rozpoznaj rodzaj polecenia").item.json.text, intent: $json.output.intent, ...($json.output.intent === "CREATE_TASK" ? { title: $json.output.title, description: $json.output.description, assignee: $json.output.assignee, visibility: $json.output.visibility, priority: $json.output.priority } : {}), ...(["COMPLETE_TASK", "RESCHEDULE_TASK"].includes($json.output.intent) ? { taskQuery: $json.output.taskQuery } : {}), ...($json.output.dueDate ? { dueDate: $json.output.dueDate } : {}), ...($json.output.dueDate && $json.output.dueTime ? { dueTime: $json.output.dueTime } : {}) } }}',
       ),
       options: { response: { response: { fullResponse: true, neverError: true, responseFormat: "json" } } },
     },
@@ -434,6 +439,37 @@ const createDraft = node({
       statusCode: 201,
     },
   ],
+});
+
+const isSummary = ifElse({
+  version: 2.3,
+  config: {
+    name: "Czy zwrócić listę?",
+    parameters: {
+      conditions: {
+        options: { caseSensitive: true, leftValue: "", typeValidation: "strict" },
+        conditions: [{ leftValue: expr("{{ $json.body?.kind }}"), rightValue: "SUMMARY", operator: { type: "string", operation: "equals" } }],
+        combinator: "and",
+      },
+    },
+  },
+});
+
+const summaryReply = node({
+  type: "n8n-nodes-base.telegram",
+  version: 1.2,
+  config: {
+    name: "Pokaż listę zadań",
+    parameters: {
+      resource: "message",
+      operation: "sendMessage",
+      chatId: expr('{{ $("Rozpoznaj rodzaj polecenia").item.json.chatId }}'),
+      text: expr('{{ ($json.body.tasks?.length ? (($json.body.view === "OVERDUE" ? "⚠️ Zaległe zadania" : "📅 Zadania na dziś") + "\n\n" + $json.body.tasks.map((task, index) => (index + 1) + ". " + task.title + (task.dueAt ? " — " + DateTime.fromISO(task.dueAt).setZone("Europe/Warsaw").toFormat("dd.MM HH:mm") : "")).join("\n")) : ($json.body.view === "OVERDUE" ? "✅ Nie masz zaległych zadań." : "✅ Nie masz zadań na dziś.")) }}'),
+      additionalFields: { appendAttribution: false, disable_web_page_preview: true },
+    },
+    credentials: { telegramApi: newCredential("Tasker Telegram Bot") },
+  },
+  output: [{ ok: true, result: { message_id: 17 } }],
 });
 
 const draftReady = ifElse({
@@ -466,7 +502,7 @@ const draftPreview = node({
       operation: "sendMessage",
       chatId: expr('{{ $("Rozpoznaj rodzaj polecenia").item.json.chatId }}'),
       text: expr(
-        '{{ "📝 Szkic zadania\n\nTytuł: " + $json.body.preview.title + "\nWykonawca: " + ($json.body.preview.assignee ?? "autor") + "\nTermin: " + ($json.body.preview.dueAt ? DateTime.fromISO($json.body.preview.dueAt).setZone("Europe/Warsaw").toFormat("dd.MM.yyyy HH:mm") : "bez terminu") + "\nPriorytet: " + $json.body.preview.priority + "\nWidoczność: " + $json.body.preview.visibility + "\n\nZatwierdzić? Jeśli nic nie wybierzesz, zadanie zostanie utworzone automatycznie za 10 minut." }}',
+        '{{ $json.body.preview.intent === "COMPLETE_TASK" ? "✅ Oznaczyć jako zrobione?\n\nZadanie: " + $json.body.preview.title + "\n\nTa operacja wymaga ręcznego zatwierdzenia." : ($json.body.preview.intent === "RESCHEDULE_TASK" ? "📅 Przesunąć termin?\n\nZadanie: " + $json.body.preview.title + "\nNowy termin: " + DateTime.fromISO($json.body.preview.dueAt).setZone("Europe/Warsaw").toFormat("dd.MM.yyyy HH:mm") + "\n\nTa operacja wymaga ręcznego zatwierdzenia." : "📝 Szkic zadania\n\nTytuł: " + $json.body.preview.title + "\nWykonawca: " + ($json.body.preview.assignee ?? "autor") + "\nTermin: " + ($json.body.preview.dueAt ? DateTime.fromISO($json.body.preview.dueAt).setZone("Europe/Warsaw").toFormat("dd.MM.yyyy HH:mm") : "bez terminu") + "\nPriorytet: " + $json.body.preview.priority + "\nWidoczność: " + $json.body.preview.visibility + "\n\nZatwierdzić? Jeśli nic nie wybierzesz, zadanie zostanie utworzone automatycznie za 10 minut.") }}',
       ),
       replyMarkup: "inlineKeyboard",
       inlineKeyboard: {
@@ -526,8 +562,9 @@ const helpReply = node({
         "Tasker przez Telegram\n\n" +
         "1. W ustawieniach Taskera wygeneruj kod połączenia.\n" +
         "2. Wyślij: /polacz KOD\n" +
-        "3. Potem pisz naturalnie, np.: Dodaj dla Michała zadanie oddzwonić jutro o 15:00, wysoki priorytet.\n" +
-        "4. Sprawdź szkic i kliknij Zatwierdź albo Anuluj.",
+        "3. Pisz naturalnie, np.: Dodaj dla Michała zadanie oddzwonić jutro o 15:00.\n" +
+        "4. Możesz też napisać: oznacz oddzwonić jako zrobione; przełóż raport na poniedziałek 9:00; pokaż zadania na dziś; pokaż zaległe.\n" +
+        "5. Operacje zmieniające zadania potwierdzasz przyciskiem.",
       additionalFields: { appendAttribution: false, disable_web_page_preview: true },
     },
     credentials: { telegramApi: newCredential("Tasker Telegram Bot") },
@@ -545,7 +582,7 @@ export default workflow("tasker-telegram-ai", "Tasker — Telegram + AI")
       .onCase(2, acknowledgeCancel.to(cancelDraft).to(cancelReply))
       .onCase(
         3,
-        assignableUsers.to(taskAgent).to(createDraft).to(draftReady.onTrue(draftPreview).onFalse(draftProblem)),
+        assignableUsers.to(taskAgent).to(createDraft).to(isSummary.onTrue(summaryReply).onFalse(draftReady.onTrue(draftPreview).onFalse(draftProblem))),
       )
       .onCase(4, helpReply),
   );

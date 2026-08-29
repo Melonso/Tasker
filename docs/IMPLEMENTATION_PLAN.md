@@ -3,13 +3,13 @@
 ## Status realizacji
 
 - **Etap 0 – zakończony.** Pełny stos Docker z PostgreSQL, migracją, webem i workerem został uruchomiony oraz sprawdzony na serwerze 2026-08-28.
-- **Etap 1 – w znacznej części gotowy.** Działają hasła, sesje, jednorazowa aktywacja, role, profile, avatary i ochrona prywatności; zespoły oraz jawne udostępnienia pozostają do wykonania.
-- **Etap 2 – podstawowy obieg gotowy.** Działają widoki, tworzenie, delegowanie, szczegóły, komentarze, oczekiwanie, wznowienie, zakończenie, anulowanie i przesuwanie terminu.
+- **Etap 1 – gotowy dla MVP.** Działają hasła, sesje, jednorazowa aktywacja, role, profile, avatary, zespoły, jawne udostępnienia i ochrona prywatności.
+- **Etap 2 – gotowy dla MVP.** Działają widoki, tworzenie, delegowanie, zadania cykliczne, szczegóły, komentarze, oczekiwanie, wznowienie, zakończenie, anulowanie i przesuwanie terminu.
 - **Etap 3 – gotowy.** Harmonogram przypomnień, eskalacje, centrum powiadomień, trwały worker, deduplikacja i diagnostyka działają produkcyjnie.
 - **Etap 4 – gotowy.** PWA, wielourządzeniowy Web Push i test z ustawień zostały wdrożone i sprawdzone.
 - **Etap 5 – podstawowy obieg gotowy.** OAuth, primary calendar, tworzenie, aktualizacja, zakończenie i odłączenie działają; wybór innego kalendarza pozostaje do wykonania.
-- **Etapy 6–7 – częściowo gotowe.** Telegram przyjmuje tekst i głos, tworzy szkic i wysyła alerty. Pozostałe intencje poza tworzeniem zadania są jeszcze do wykonania.
-- **Etap 8 – rozpoczęty.** Działają lokalne automatyczne backupy, cotygodniowy test odtworzenia i zewnętrzny monitoring n8n; pozostaje kopia poza serwerem i pełny pilotaż.
+- **Etapy 6–7 – gotowe dla MVP.** Telegram przyjmuje tekst i głos, tworzy bezpieczne szkice, kończy i przesuwa zadania, pokazuje listy na dziś i zaległe oraz wysyła alerty zgodnie z preferencjami.
+- **Etap 8 – pilotaż aktywny.** Działają lokalne automatyczne backupy, szyfrowana kopia w Google Drive przez n8n, cotygodniowy test odtworzenia, zewnętrzny monitoring i metryki pilotażu uruchomionego 2026-08-29 dla czterech użytkowników.
 
 ## 1. Rekomendowana architektura
 

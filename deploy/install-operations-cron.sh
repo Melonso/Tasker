@@ -19,6 +19,7 @@ filtered_crontab="$(printf '%s\n' "$existing_crontab" | awk -v marker="$TASKER_C
   printf '%s\n' "$filtered_crontab"
   printf '%s\n' "$TASKER_CRON_MARKER"
   printf '%s\n' "17 2 * * * $TASKER_APP_DIR/deploy/backup-tasker.sh >> $TASKER_LOG_DIR/backup.log 2>&1"
+  printf '%s\n' "27 2 * * * $TASKER_APP_DIR/deploy/upload-offsite-backup.sh >> $TASKER_LOG_DIR/offsite-backup.log 2>&1"
   printf '%s\n' "47 2 * * 0 $TASKER_APP_DIR/deploy/verify-tasker-backup.sh >> $TASKER_LOG_DIR/restore-check.log 2>&1"
   printf '%s\n' "*/5 * * * * $TASKER_APP_DIR/deploy/check-tasker-health.sh >> $TASKER_LOG_DIR/health.log 2>&1"
   printf '%s\n' "# END_TASKER_MANAGED_OPERATIONS"

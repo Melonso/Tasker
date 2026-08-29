@@ -1168,6 +1168,200 @@ h2 {
 .inline-action-form label { display: grid; gap: 7px; color: var(--muted); font-size: 10px; font-weight: 800; }
 .inline-action-form textarea { resize: vertical; }
 
+.share-picker {
+  display: grid;
+  gap: 10px;
+  padding: 14px;
+  border: 1px solid var(--line);
+  border-radius: 13px;
+  background: #f8faf8;
+}
+
+.share-picker legend {
+  padding: 0 5px;
+  color: #34453e;
+  font-size: 12px;
+  font-weight: 800;
+}
+
+.share-options {
+  display: grid;
+  grid-template-columns: repeat(2, minmax(0, 1fr));
+  gap: 8px;
+}
+
+.share-options label,
+.notification-preferences-form label {
+  display: flex;
+  min-height: 48px;
+  align-items: center;
+  gap: 10px;
+  padding: 10px 12px;
+  border: 1px solid var(--line);
+  border-radius: 11px;
+  cursor: pointer;
+  background: #fff;
+  font-size: 11px;
+  font-weight: 750;
+}
+
+.share-options input,
+.notification-preferences-form input {
+  width: 16px;
+  height: 16px;
+  accent-color: var(--green-700);
+}
+
+.team-mark {
+  display: grid;
+  width: 30px;
+  height: 30px;
+  place-items: center;
+  border-radius: 9px;
+  color: var(--green-700);
+  background: var(--green-100);
+  font-weight: 900;
+}
+
+.detail-config-grid {
+  display: grid;
+  grid-template-columns: repeat(2, minmax(0, 1fr));
+  gap: 14px;
+  margin-top: 20px;
+  padding-top: 20px;
+  border-top: 1px solid var(--line);
+}
+
+.detail-config-card {
+  display: grid;
+  gap: 12px;
+  padding: 16px;
+  border: 1px solid var(--line);
+  border-radius: 13px;
+  background: #f8faf8;
+}
+
+.detail-config-card label,
+.team-create-form label,
+.team-add-form label {
+  display: grid;
+  gap: 6px;
+  color: var(--muted);
+  font-size: 10px;
+  font-weight: 800;
+}
+
+.detail-config-card input,
+.detail-config-card select,
+.team-create-form input[type="text"],
+.team-create-form input:not([type]),
+.team-add-form select {
+  min-height: 40px;
+  padding: 0 11px;
+  border: 1px solid #d7dfda;
+  border-radius: 10px;
+  color: var(--ink);
+  background: #fff;
+}
+
+.compact-config-card {
+  align-content: start;
+}
+
+.compact-config-card p {
+  margin: 0;
+  color: var(--muted);
+  font-size: 11px;
+  line-height: 1.55;
+}
+
+.sharing-panel,
+.team-panel {
+  padding-bottom: 22px;
+}
+
+.sharing-form,
+.shared-with-list {
+  display: grid;
+  gap: 14px;
+  padding: 0 24px;
+}
+
+.shared-with-list {
+  display: flex;
+  flex-wrap: wrap;
+}
+
+.team-create-form,
+.team-add-form {
+  display: grid;
+  grid-template-columns: minmax(180px, 1fr) minmax(220px, auto) auto;
+  align-items: end;
+  gap: 14px;
+  padding: 0 24px 24px;
+}
+
+.team-create-form .checkbox-label {
+  display: flex;
+  min-height: 40px;
+  align-items: center;
+  gap: 8px;
+}
+
+.team-create-form input[type="checkbox"] { accent-color: var(--green-700); }
+
+.team-member-list {
+  border-top: 1px solid var(--line);
+  border-bottom: 1px solid var(--line);
+  margin-bottom: 20px;
+}
+
+.team-member-list article {
+  display: grid;
+  grid-template-columns: auto minmax(0, 1fr) auto;
+  min-height: 60px;
+  align-items: center;
+  gap: 12px;
+  padding: 9px 24px;
+  border-bottom: 1px solid var(--line);
+}
+
+.team-member-list article:last-child { border-bottom: 0; }
+.team-add-form { padding-bottom: 0; grid-template-columns: minmax(180px, 1fr) auto; }
+
+.notification-preferences-form {
+  display: grid;
+  grid-template-columns: repeat(3, minmax(0, 1fr));
+  gap: 10px;
+  padding: 0 24px 24px;
+}
+
+.notification-preferences-form label span,
+.notification-preferences-form label strong,
+.notification-preferences-form label small {
+  display: block;
+}
+
+.notification-preferences-form label small {
+  margin-top: 4px;
+  color: var(--muted);
+  font-size: 9px;
+  font-weight: 500;
+  line-height: 1.4;
+}
+
+.notification-preferences-form button { justify-self: start; }
+
+.pilot-panel { padding-bottom: 24px; }
+.pilot-content { display: grid; gap: 14px; padding: 0 24px; }
+.pilot-content p { margin: 0; color: var(--muted); font-size: 11px; line-height: 1.55; }
+.pilot-content button { justify-self: start; }
+.pilot-metrics { display: grid; grid-template-columns: repeat(3, minmax(0, 1fr)); gap: 10px; }
+.pilot-metrics span { padding: 13px; border-radius: 11px; background: #f5f8f6; }
+.pilot-metrics strong, .pilot-metrics small { display: block; }
+.pilot-metrics strong { color: var(--green-700); font-size: 22px; }
+.pilot-metrics small { margin-top: 3px; color: var(--muted); font-size: 9px; }
+
 .comments-panel,
 .history-panel { padding-bottom: 24px; }
 .comment-list { display: grid; gap: 16px; padding: 0 25px; }
@@ -1544,4 +1738,25 @@ h2 {
     grid-column: 2;
     justify-self: start;
   }
+
+  .share-options,
+  .detail-config-grid,
+  .notification-preferences-form {
+    grid-template-columns: 1fr;
+  }
+
+  .team-create-form,
+  .team-add-form {
+    grid-template-columns: 1fr;
+  }
+
+  .team-create-form .primary-button,
+  .team-add-form .secondary-button,
+  .sharing-form .secondary-button,
+  .notification-preferences-form .secondary-button {
+    width: 100%;
+  }
+
+  .pilot-metrics { grid-template-columns: 1fr; }
+  .pilot-content button { width: 100%; }
 }

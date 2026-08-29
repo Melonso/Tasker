@@ -3,6 +3,7 @@ import { and, eq, inArray, sql } from "drizzle-orm";
 import { getDatabaseClient } from "@/db/client";
 import {
   notificationDeliveries,
+  notificationPreferences,
   notifications,
   pushSubscriptions,
   reminders,
@@ -135,6 +136,19 @@ async function processClaimedReminder(reminder: ClaimedReminder, now: Date) {
       .from(pushSubscriptions)
       .where(inArray(pushSubscriptions.userId, recipientIds));
     const pushUserIds = new Set(pushRows.map((row) => row.userId));
+    const preferenceRows = await tx
+      .select({
+        userId: notificationPreferences.userId,
+        channel: notificationPreferences.channel,
+        enabled: notificationPreferences.enabled,
+      })
+      .from(notificationPreferences)
+      .where(inArray(notificationPreferences.userId, recipientIds));
+    const disabledChannels = new Set(
+      preferenceRows
+        .filter((preference) => !preference.enabled)
+        .map((preference) => `${preference.userId}:${preference.channel}`),
+    );
 
     for (const recipientId of recipientIds) {
       const content = reminderContent({
@@ -161,13 +175,13 @@ async function processClaimedReminder(reminder: ClaimedReminder, now: Date) {
         {
           notificationId: notification.id,
           channel: "TELEGRAM",
-          status: connectedUserIds.has(recipientId) ? "PENDING" : "SKIPPED",
+          status: connectedUserIds.has(recipientId) && !disabledChannels.has(`${recipientId}:TELEGRAM`) ? "PENDING" : "SKIPPED",
           idempotencyKey: `${reminder.id}:${recipientId}:TELEGRAM`,
         },
         {
           notificationId: notification.id,
           channel: "WEB_PUSH",
-          status: pushUserIds.has(recipientId) ? "PENDING" : "SKIPPED",
+          status: pushUserIds.has(recipientId) && !disabledChannels.has(`${recipientId}:WEB_PUSH`) ? "PENDING" : "SKIPPED",
           idempotencyKey: `${reminder.id}:${recipientId}:WEB_PUSH`,
         },
       ]);

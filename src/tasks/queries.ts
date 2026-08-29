@@ -3,7 +3,16 @@ import { alias } from "drizzle-orm/pg-core";
 
 import type { AuthenticatedUser } from "@/auth/session";
 import { getDatabaseClient } from "@/db/client";
-import { taskComments, taskDueDateHistory, taskRecurrences, tasks, taskShares, users } from "@/db/schema";
+import {
+  taskComments,
+  taskDueDateHistory,
+  taskRecurrences,
+  tasks,
+  taskShares,
+  teamMembers,
+  teams,
+  users,
+} from "@/db/schema";
 import { zonedDateTimeToUtc } from "@/domain/reminders";
 
 import { isCompanyUser } from "./policy";
@@ -15,6 +24,7 @@ export function accessCondition(user: AuthenticatedUser) {
     eq(tasks.authorId, user.id),
     eq(tasks.assigneeId, user.id),
     eq(taskShares.userId, user.id),
+    eq(teamMembers.userId, user.id),
   ];
   if (isCompanyUser(user.roles)) directConditions.push(eq(tasks.visibility, "COMPANY"));
   return or(...directConditions);
@@ -26,6 +36,7 @@ export async function canAccessStoredTask(user: AuthenticatedUser, taskId: strin
     .selectDistinct({ id: tasks.id })
     .from(tasks)
     .leftJoin(taskShares, eq(tasks.id, taskShares.taskId))
+    .leftJoin(teamMembers, and(eq(taskShares.teamId, teamMembers.teamId), eq(teamMembers.userId, user.id)))
     .where(and(eq(tasks.id, taskId), accessCondition(user)))
     .limit(1);
   return Boolean(row);
@@ -64,11 +75,12 @@ export async function getTaskDetails(user: AuthenticatedUser, taskId: string) {
     .innerJoin(author, eq(tasks.authorId, author.id))
     .innerJoin(assignee, eq(tasks.assigneeId, assignee.id))
     .leftJoin(taskShares, eq(tasks.id, taskShares.taskId))
+    .leftJoin(teamMembers, and(eq(taskShares.teamId, teamMembers.teamId), eq(teamMembers.userId, user.id)))
     .where(and(eq(tasks.id, taskId), accessCondition(user)))
     .limit(1);
   if (!task) return null;
 
-  const [comments, dueDateHistory] = await Promise.all([
+  const [comments, dueDateHistory, [recurrence], shareRows] = await Promise.all([
     db
       .select({
         id: taskComments.id,
@@ -96,9 +108,22 @@ export async function getTaskDetails(user: AuthenticatedUser, taskId: string) {
       .innerJoin(dueDateChanger, eq(taskDueDateHistory.changedById, dueDateChanger.id))
       .where(eq(taskDueDateHistory.taskId, taskId))
       .orderBy(desc(taskDueDateHistory.changedAt)),
+    db.select().from(taskRecurrences).where(eq(taskRecurrences.taskId, taskId)).limit(1),
+    db
+      .select({
+        userId: taskShares.userId,
+        userFirstName: users.firstName,
+        userLastName: users.lastName,
+        teamId: taskShares.teamId,
+        teamName: teams.name,
+      })
+      .from(taskShares)
+      .leftJoin(users, eq(taskShares.userId, users.id))
+      .leftJoin(teams, eq(taskShares.teamId, teams.id))
+      .where(eq(taskShares.taskId, taskId)),
   ]);
 
-  return { ...task, comments, dueDateHistory };
+  return { ...task, comments, dueDateHistory, recurrence: recurrence ?? null, shares: shareRows };
 }
 
 function viewCondition(user: AuthenticatedUser, view: Exclude<TaskView, "today">) {
@@ -166,6 +191,8 @@ export async function listTasksForView(user: AuthenticatedUser, view: TaskView) 
       assigneeFirstName: assignee.firstName,
       assigneeLastName: assignee.lastName,
       assigneeAvatarDataUrl: assignee.avatarDataUrl,
+      recurrenceRule: taskRecurrences.rule,
+      recurrencePaused: taskRecurrences.isPaused,
       waitingReason: tasks.waitingReason,
       completedAt: tasks.completedAt,
       createdAt: tasks.createdAt,
@@ -174,6 +201,7 @@ export async function listTasksForView(user: AuthenticatedUser, view: TaskView) 
     .from(tasks)
     .innerJoin(assignee, eq(tasks.assigneeId, assignee.id))
     .leftJoin(taskShares, eq(tasks.id, taskShares.taskId))
+    .leftJoin(teamMembers, and(eq(taskShares.teamId, teamMembers.teamId), eq(teamMembers.userId, user.id)))
     .leftJoin(taskRecurrences, eq(tasks.id, taskRecurrences.taskId))
     .where(and(accessCondition(user), viewFilter))
     .orderBy(asc(tasks.dueAt), desc(tasks.createdAt));
@@ -205,4 +233,14 @@ export async function listAssignableUsers(user: AuthenticatedUser) {
     .from(users)
     .where(eq(users.isActive, true))
     .orderBy(asc(users.firstName), asc(users.lastName));
+}
+
+export async function listTeamsForSharing(user: AuthenticatedUser) {
+  if (!user.roles.includes("BUSINESS_OWNER")) return [];
+  const { db } = getDatabaseClient();
+  return db
+    .select({ id: teams.id, name: teams.name, isExternal: teams.isExternal })
+    .from(teams)
+    .where(eq(teams.createdById, user.id))
+    .orderBy(asc(teams.name));
 }

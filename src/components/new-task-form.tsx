@@ -1,6 +1,6 @@
 "use client";
 
-import { useActionState } from "react";
+import { useActionState, useState } from "react";
 import Link from "next/link";
 
 import { UserAvatar } from "@/components/user-avatar";
@@ -14,8 +14,23 @@ interface AssigneeOption {
   avatarDataUrl: string | null;
 }
 
-export function NewTaskForm({ assignees, currentUserId }: { assignees: AssigneeOption[]; currentUserId: string }) {
+interface ShareTeamOption {
+  id: string;
+  name: string;
+  isExternal: boolean;
+}
+
+export function NewTaskForm({
+  assignees,
+  currentUserId,
+  teams,
+}: {
+  assignees: AssigneeOption[];
+  currentUserId: string;
+  teams: ShareTeamOption[];
+}) {
   const [state, action, pending] = useActionState(createTaskAction, {});
+  const [visibility, setVisibility] = useState("PRIVATE");
 
   return (
     <form action={action} className="task-form panel">
@@ -48,12 +63,33 @@ export function NewTaskForm({ assignees, currentUserId }: { assignees: AssigneeO
         </fieldset>
         <label>
           Widoczność
-          <select defaultValue="PRIVATE" name="visibility">
+          <select name="visibility" onChange={(event) => setVisibility(event.target.value)} value={visibility}>
             <option value="PRIVATE">Prywatne</option>
             <option value="COMPANY">Firmowe</option>
             <option value="SHARED">Udostępnione</option>
           </select>
         </label>
+        {visibility === "SHARED" ? (
+          <fieldset className="share-picker wide-field">
+            <legend>Udostępnij osobom lub zespołom</legend>
+            <div className="share-options">
+              {assignees.filter((person) => person.id !== currentUserId).map((person) => (
+                <label key={person.id}>
+                  <input name="shareUserIds" type="checkbox" value={person.id} />
+                  <UserAvatar avatarDataUrl={person.avatarDataUrl} firstName={person.firstName} lastName={person.lastName} size={30} />
+                  <span>{person.firstName} {person.lastName}</span>
+                </label>
+              ))}
+              {teams.map((team) => (
+                <label key={team.id}>
+                  <input name="shareTeamIds" type="checkbox" value={team.id} />
+                  <span className="team-mark">Z</span>
+                  <span>{team.name}{team.isExternal ? " · zewnętrzny" : ""}</span>
+                </label>
+              ))}
+            </div>
+          </fieldset>
+        ) : null}
         <label>
           Data terminu
           <input name="dueDate" type="date" />
@@ -71,6 +107,21 @@ export function NewTaskForm({ assignees, currentUserId }: { assignees: AssigneeO
             <option value="HIGH">Wysoki</option>
             <option value="URGENT">Pilny</option>
           </select>
+        </label>
+        <label>
+          Powtarzanie
+          <select defaultValue="NONE" name="recurrenceFrequency">
+            <option value="NONE">Nie powtarzaj</option>
+            <option value="DAILY">Codziennie</option>
+            <option value="WEEKLY">Co tydzień</option>
+            <option value="MONTHLY">Co miesiąc</option>
+          </select>
+          <small>Wymaga ustawienia pierwszego terminu.</small>
+        </label>
+        <label>
+          Interwał cyklu
+          <input defaultValue={1} max={365} min={1} name="recurrenceInterval" type="number" />
+          <small>Na przykład 2 oznacza co 2 tygodnie.</small>
         </label>
       </div>
       {state.error ? <p className="form-error task-form-error" role="alert">{state.error}</p> : null}
