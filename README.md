@@ -26,7 +26,7 @@ Pierwsza wersja produktu będzie łączyć:
 Wdrożona wersja produkcyjna działa pod `https://tasker.dpkomis.pl`. Zrealizowane są:
 
 - aplikacja Next.js 16 i React 19,
-- responsywny pulpit, ustawienia użytkownika, avatary i administracja,
+- responsywny pulpit stawiający zadania przed statystykami, ustawienia użytkownika, avatary i administracja,
 - wersjonowany schemat PostgreSQL i migracje Drizzle,
 - seed czterech użytkowników pilotażowych i ich ról,
 - reguły przypomnień z obsługą strefy `Europe/Warsaw`,
@@ -37,6 +37,9 @@ Wdrożona wersja produkcyjna działa pod `https://tasker.dpkomis.pl`. Zrealizowa
 - logowanie, sesje i jednorazowe linki aktywacyjne,
 - role oraz ochrona tras i treści prywatnych,
 - zadania zapisywane w PostgreSQL: tworzenie, delegowanie, kończenie i przesuwanie terminu,
+- osobisty plan dnia z sekcjami „Po terminie”, „Plan na dziś” i „Termin na dziś”,
+- szybkie dodawanie z najważniejszymi polami na wierzchu i opcjami zaawansowanymi na żądanie,
+- mobilny pasek z centralnym przyciskiem dodawania oraz szybkie przesuwanie na jutro lub za tydzień,
 - szczegóły zadania, komentarze, oczekiwanie, wznowienie i anulowanie,
 - ustawienia profilu oraz godzin 14:00 i 9:00,
 - PWA i Web Push przetestowane na prawdziwej przeglądarce,

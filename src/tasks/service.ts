@@ -26,6 +26,7 @@ export interface CreateTaskInput {
   visibility: "PRIVATE" | "COMPANY" | "SHARED";
   priority: "LOW" | "NORMAL" | "HIGH" | "URGENT";
   dueAt: Date | null;
+  plannedForDate?: string | null;
   source?: "WEB" | "TELEGRAM" | "API";
   recurrenceRule?: RecurrenceRule | null;
   shareUserIds?: string[];
@@ -120,6 +121,7 @@ export async function createTaskForUser(user: AuthenticatedUser, input: CreateTa
         visibility: input.visibility,
         priority: input.priority,
         dueAt: input.dueAt,
+        plannedForDate: input.plannedForDate ?? null,
       })
       .returning({ id: tasks.id });
     if (!task) throw new Error("Task insert returned no identifier.");

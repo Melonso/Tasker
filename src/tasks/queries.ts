@@ -14,6 +14,7 @@ import {
   users,
 } from "@/db/schema";
 import { zonedDateTimeToUtc } from "@/domain/reminders";
+import { localDateKey } from "./presentation";
 
 import { isCompanyUser } from "./policy";
 
@@ -148,12 +149,7 @@ export async function listTasksForView(user: AuthenticatedUser, view: TaskView) 
 
   let viewFilter;
   if (view === "today") {
-    const localDate = new Intl.DateTimeFormat("en-CA", {
-      timeZone: user.timeZone,
-      year: "numeric",
-      month: "2-digit",
-      day: "2-digit",
-    }).format(now);
+    const localDate = localDateKey(now, user.timeZone);
     const [year, month, day] = localDate.split("-").map(Number);
     const nextDay = new Date(Date.UTC(year, month - 1, day + 1));
     const endOfDay = new Date(
@@ -170,8 +166,10 @@ export async function listTasksForView(user: AuthenticatedUser, view: TaskView) 
     viewFilter = and(
       eq(tasks.assigneeId, user.id),
       eq(tasks.status, "OPEN"),
-      isNotNull(tasks.dueAt),
-      lte(tasks.dueAt, endOfDay),
+      or(
+        and(isNotNull(tasks.dueAt), lte(tasks.dueAt, endOfDay)),
+        eq(tasks.plannedForDate, localDate),
+      ),
     );
   } else {
     viewFilter = viewCondition(user, view);
@@ -186,6 +184,7 @@ export async function listTasksForView(user: AuthenticatedUser, view: TaskView) 
       visibility: tasks.visibility,
       priority: tasks.priority,
       dueAt: tasks.dueAt,
+      plannedForDate: tasks.plannedForDate,
       authorId: tasks.authorId,
       assigneeId: tasks.assigneeId,
       assigneeFirstName: assignee.firstName,

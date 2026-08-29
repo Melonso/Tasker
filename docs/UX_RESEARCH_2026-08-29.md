@@ -2,6 +2,21 @@
 
 Data analizy: 2026-08-29
 
+## Status realizacji
+
+Pierwsza iteracja P0 została wdrożona 2026-08-29:
+
+- zadania znajdują się przed licznikami, a statystyki są domyślnie zwinięte,
+- „Dzisiaj” ma sekcje „Po terminie”, „Plan na dziś” i „Termin na dziś”,
+- wykonawca może przypiąć dowolne własne aktywne zadanie do dzisiejszego planu,
+- lista została zagęszczona i eksponuje termin oraz wysoki/pilny priorytet,
+- formularz szybkiego dodawania pokazuje najpierw tylko najczęściej używane pola,
+- na telefonie centralny przycisk `+` jest dostępny stale w dolnym pasku,
+- termin można przesunąć jednym działaniem na jutro albo za tydzień,
+- znaki tekstowe w głównej nawigacji zastąpiono spójnymi ikonami liniowymi SVG.
+
+Do następnej iteracji pozostają wyszukiwanie/paleta poleceń, tygodniowy planer oraz pełny obieg przyjęcia lub negocjacji delegowanego zadania.
+
 ## Cel
 
 Tasker ma pozostać prostym narzędziem dla małego zespołu, ale szybciej odpowiadać na trzy codzienne pytania:

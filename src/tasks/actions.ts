@@ -18,6 +18,7 @@ import {
   users,
 } from "@/db/schema";
 import { nextRecurringDueAt } from "@/domain/recurrence";
+import { localDateKey, localDateKeyAfterDays, localTimeKey } from "./presentation";
 import { canAccessStoredTask } from "./queries";
 import { completeTaskForUser, createTaskForUser, dueAtFromInput, rescheduleTaskForUser, TaskInputError } from "./service";
 
@@ -31,6 +32,7 @@ const taskSchema = z.object({
   dueTime: z.string().regex(/^\d{2}:\d{2}$/).optional().or(z.literal("")),
   recurrenceFrequency: z.enum(["NONE", "DAILY", "WEEKLY", "MONTHLY"]),
   recurrenceInterval: z.coerce.number().int().min(1).max(365),
+  planForToday: z.boolean(),
 });
 
 const rescheduleSchema = z.object({
@@ -76,8 +78,12 @@ export async function createTaskAction(
     dueTime: formData.get("dueTime"),
     recurrenceFrequency: formData.get("recurrenceFrequency") || "NONE",
     recurrenceInterval: formData.get("recurrenceInterval") || 1,
+    planForToday: formData.get("planForToday") === "on",
   });
   if (!parsed.success) return { error: parsed.error.issues[0]?.message ?? "Nieprawidłowe dane zadania." };
+  if (parsed.data.planForToday && parsed.data.assigneeId !== user.id) {
+    return { error: "Do własnego planu dnia możesz dodać tylko zadanie przypisane do Ciebie." };
+  }
 
   const dueAt = dueAtFromInput(parsed.data.dueDate, parsed.data.dueTime, user);
   try {
@@ -88,6 +94,7 @@ export async function createTaskAction(
       visibility: parsed.data.visibility,
       priority: parsed.data.priority,
       dueAt,
+      plannedForDate: parsed.data.planForToday ? localDateKey(new Date(), user.timeZone) : null,
       source: "WEB",
       recurrenceRule: parsed.data.recurrenceFrequency !== "NONE"
         ? {
@@ -138,6 +145,51 @@ export async function rescheduleTaskAction(formData: FormData) {
   const newDueAt = dueAtFromInput(parsed.dueDate, parsed.dueTime, user);
   if (!newDueAt) throw new Error("Nowy termin jest wymagany.");
   await rescheduleTaskForUser(user, task.id, newDueAt);
+  revalidatePath("/");
+  revalidatePath(`/tasks/${task.id}`);
+}
+
+export async function rescheduleTaskPresetAction(formData: FormData) {
+  const user = await requireUser();
+  const taskId = z.uuid().parse(formData.get("taskId"));
+  const preset = z.enum(["TOMORROW", "NEXT_WEEK"]).parse(formData.get("preset"));
+  const task = await editableTask(taskId, user.id);
+  const dueDate = localDateKeyAfterDays(new Date(), user.timeZone, preset === "TOMORROW" ? 1 : 7);
+  const dueTime = task.dueAt ? localTimeKey(task.dueAt, user.timeZone) : undefined;
+  const newDueAt = dueAtFromInput(dueDate, dueTime, user);
+  if (!newDueAt) throw new Error("Nie udało się wyznaczyć nowego terminu.");
+  await rescheduleTaskForUser(user, task.id, newDueAt);
+  revalidatePath("/");
+  revalidatePath(`/tasks/${task.id}`);
+}
+
+export async function setTaskPlannedForTodayAction(formData: FormData) {
+  const user = await requireUser();
+  const taskId = z.uuid().parse(formData.get("taskId"));
+  const planned = z.enum(["true", "false"]).parse(formData.get("planned")) === "true";
+  const { db } = getDatabaseClient();
+  const [task] = await db
+    .select({ id: tasks.id, assigneeId: tasks.assigneeId, status: tasks.status, version: tasks.version })
+    .from(tasks)
+    .where(eq(tasks.id, taskId))
+    .limit(1);
+  if (!task || task.assigneeId !== user.id || !["OPEN", "WAITING"].includes(task.status)) {
+    throw new Error("Do swojego planu możesz dodać tylko aktywne zadanie przypisane do Ciebie.");
+  }
+
+  const plannedForDate = planned ? localDateKey(new Date(), user.timeZone) : null;
+  await db.transaction(async (tx) => {
+    await tx
+      .update(tasks)
+      .set({ plannedForDate, updatedAt: new Date(), version: task.version + 1 })
+      .where(eq(tasks.id, task.id));
+    await tx.insert(auditEvents).values({
+      actorId: user.id,
+      taskId: task.id,
+      action: planned ? "TASK_PLANNED_FOR_TODAY" : "TASK_REMOVED_FROM_TODAY_PLAN",
+      metadata: { plannedForDate },
+    });
+  });
   revalidatePath("/");
   revalidatePath(`/tasks/${task.id}`);
 }

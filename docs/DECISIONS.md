@@ -31,6 +31,10 @@ Data bazowa ustaleń: 2026-08-28. Strefa czasowa pierwszego wdrożenia: `Europe/
 25. Użytkownik może wgrać avatar PNG, JPG lub WebP do 1 MB. Obraz jest przechowywany w PostgreSQL, dzięki czemu nie znika przy wymianie kontenera.
 26. Kompletny szkic Telegrama jest automatycznie zatwierdzany po 10 minutach bez reakcji. Szkic niejasny zawsze czeka na doprecyzowanie.
 27. Kod źródłowy jest wersjonowany w repozytorium `https://github.com/Melonso/Tasker`.
+28. Ekran „Dzisiaj” pokazuje najpierw zadania, a liczniki kategorii są domyślnie zwiniętym podsumowaniem pod listą.
+29. Osobisty plan dnia należy do wykonawcy. Tylko wykonawca może przypiąć aktywne zadanie do własnego planu na bieżącą datę.
+30. Mobilny pasek nawigacji zawiera `Dzisiaj`, `Zadania`, centralne `Dodaj`, `Powiadomienia` i `Więcej`; szczegółowe statusy są filtrami, nie równorzędnymi głównymi celami nawigacji.
+31. Formularz tworzenia eksponuje tytuł, wykonawcę, termin i priorytet. Opis, widoczność, udostępnianie oraz cykliczność są opcjami rozwijanymi na żądanie.
 
 ## Użytkownicy pilotażowi i role
 

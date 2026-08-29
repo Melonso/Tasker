@@ -14,7 +14,7 @@ export default async function NewTaskPage() {
   return (
     <div className="page-stack narrow-page">
       <header className="page-header">
-        <div><p className="eyebrow">Zadania</p><h1>Dodaj nowe zadanie</h1><p>Ustal odpowiedzialność i termin. Przypomnienia zaplanują się automatycznie.</p></div>
+        <div><p className="eyebrow">Zadania</p><h1>Dodaj zadanie</h1><p>Wpisz najważniejsze informacje. Rzadziej używane opcje możesz rozwinąć później.</p></div>
       </header>
       <NewTaskForm assignees={assignees} currentUserId={user.id} teams={teams} />
     </div>

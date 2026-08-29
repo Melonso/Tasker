@@ -183,6 +183,8 @@ Każde wdrożenie powinno posiadać identyfikowalną wersję obrazu. Bezpieczny 
 
 Rollback aplikacji nie może automatycznie cofać destrukcyjnej migracji bazy. Migracje MVP powinny być projektowane jako rozszerzające i odwracalne operacyjnie.
 
+Migracja `0007_shallow_captain_midlands.sql` dodaje nullable pole `tasks.planned_for_date` oraz indeks wykonawca + data planu. Jest rozszerzająca: starsza wersja aplikacji ignoruje kolumnę, dlatego rollback obrazu nie wymaga cofania migracji.
+
 ## 10. Kopie zapasowe i monitoring
 
 Minimum produkcyjne:

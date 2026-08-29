@@ -10,7 +10,7 @@
 - **Etap 5 – podstawowy obieg gotowy.** OAuth, primary calendar, tworzenie, aktualizacja, zakończenie i odłączenie działają; wybór innego kalendarza pozostaje do wykonania.
 - **Etapy 6–7 – gotowe dla MVP.** Telegram przyjmuje tekst i głos, tworzy bezpieczne szkice, kończy i przesuwa zadania, pokazuje listy na dziś i zaległe oraz wysyła alerty zgodnie z preferencjami.
 - **Etap 8 – pilotaż aktywny.** Działają lokalne automatyczne backupy, szyfrowana kopia w Google Drive przez n8n, sprawdzona pełna próba odtworzenia offsite, automatyczna retencja 14 zestawów dziennych + 8 tygodniowych, zewnętrzny monitoring i metryki pilotażu uruchomionego 2026-08-29 dla czterech użytkowników.
-- **Etap 9 – kierunek UX opisany.** Audyt popularnych aplikacji oraz priorytety następnej iteracji znajdują się w `docs/UX_RESEARCH_2026-08-29.md`. Pierwszy rekomendowany zakres to szybkie dodawanie, prawdziwy plan dnia, bardziej zadaniowa nawigacja mobilna i skanowalna lista.
+- **Etap 9 – pierwsza iteracja UX wdrożona.** Audyt znajduje się w `docs/UX_RESEARCH_2026-08-29.md`. Zrealizowano zadaniowy ekran „Dzisiaj”, osobiste przypinanie do planu, zwinięte statystyki, skanowalną listę, uproszczone dodawanie, szybkie przesuwanie terminu i mobilną nawigację z centralnym `+`.
 
 ## 1. Rekomendowana architektura
 
@@ -89,9 +89,12 @@ Zakres:
 - delegowanie jednej osobie,
 - widoki Bieżące, Oczekujące, Delegowane, Cykliczne i Zrobione,
 - ekran Dzisiaj,
+- osobisty plan dnia oraz hierarchię „Po terminie” → „Plan na dziś” → „Termin na dziś”,
 - przesuwanie terminu,
+- szybkie przesuwanie na jutro lub za tydzień,
 - komentarze i historia zmian,
 - responsywny interfejs mobilny.
+- progresywne ujawnianie zaawansowanych pól podczas tworzenia zadania.
 
 Warunek zakończenia: pełny obieg zadania działa bez integracji zewnętrznych i posiada testy autoryzacji.
 

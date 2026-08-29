@@ -1,5 +1,6 @@
 import {
   boolean,
+  date,
   index,
   integer,
   jsonb,
@@ -154,6 +155,7 @@ export const tasks = pgTable(
     visibility: taskVisibilityEnum("visibility").default("PRIVATE").notNull(),
     priority: taskPriorityEnum("priority").default("NORMAL").notNull(),
     dueAt: timestamp("due_at", { withTimezone: true }),
+    plannedForDate: date("planned_for_date"),
     waitingReason: text("waiting_reason"),
     completedAt: timestamp("completed_at", { withTimezone: true }),
     completedById: uuid("completed_by_id").references(() => users.id),
@@ -164,6 +166,7 @@ export const tasks = pgTable(
     index("tasks_assignee_status_idx").on(table.assigneeId, table.status),
     index("tasks_author_status_idx").on(table.authorId, table.status),
     index("tasks_due_at_idx").on(table.dueAt),
+    index("tasks_assignee_planned_date_idx").on(table.assigneeId, table.plannedForDate),
   ],
 );
 

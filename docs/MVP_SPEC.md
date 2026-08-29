@@ -19,6 +19,7 @@ Zadanie zawiera co najmniej:
 - autora,
 - jednego głównego wykonawcę,
 - opcjonalny termin,
+- opcjonalną datę przypięcia do osobistego planu dnia wykonawcy,
 - priorytet,
 - stan wykonania,
 - zakres widoczności,
@@ -39,6 +40,8 @@ Widoki w interfejsie:
 - **Delegowane** – aktywne zadania utworzone/delegowane przez użytkownika innej osobie,
 - **Cykliczne** – zadania posiadające regułę powtarzania,
 - **Zrobione** – zakończone archiwum.
+
+Widok **Dzisiaj** ma hierarchię zadaniową, nie statystyczną. Najpierw pokazuje pracę w sekcjach „Po terminie”, „Plan na dziś” i „Termin na dziś”. Liczniki kategorii są wtórnym, domyślnie zwiniętym podsumowaniem. Wykonawca może przypiąć własne aktywne zadanie do planu na bieżący dzień niezależnie od jego terminu.
 
 Zmiana na `WAITING` wymaga krótkiego powodu i opcjonalnej daty ponownego sprawdzenia. Zakończenie zadania zapisuje wykonawcę i czas wykonania.
 
@@ -168,19 +171,19 @@ Ustawienia globalne są dostępne wyłącznie administratorowi aplikacji i obejm
 ## 3. Ekrany MVP
 
 1. **Logowanie i aktywacja zaproszenia**.
-2. **Dzisiaj** – zadania przeterminowane, na dziś i najbliższe.
+2. **Dzisiaj** – zadania przeterminowane, świadomie przypięte do planu oraz z terminem na dziś; statystyki pozostają zwinięte pod listą.
 3. **Bieżące**.
 4. **Oczekujące**.
 5. **Delegowane**.
 6. **Cykliczne**.
 7. **Zrobione**.
 8. **Szczegóły zadania** – komentarze, historia, termin, wykonawca i widoczność.
-9. **Nowe/edytowane zadanie**.
+9. **Nowe/edytowane zadanie** – szybki formularz eksponuje tytuł, wykonawcę, termin i priorytet, a opis, widoczność, udostępnianie oraz cykliczność rozwija się na żądanie.
 10. **Centrum powiadomień**.
 11. **Moje ustawienia** – profil, Google, Telegram, push i preferencje.
 12. **Administracja** – użytkownicy, konfiguracja i kondycja integracji.
 
-Na urządzeniach mobilnych kluczowe akcje „Dodaj”, „Zrobione” i „Przesuń” muszą być dostępne bez rozwijania wielopoziomowych menu.
+Na urządzeniach mobilnych kluczowe akcje „Dodaj”, „Zrobione” i „Przesuń” muszą być dostępne bez rozwijania wielopoziomowych menu. Dolny pasek zawiera `Dzisiaj`, `Zadania`, centralne `Dodaj`, `Powiadomienia` i `Więcej`.
 
 ## 4. Model uprawnień
 
