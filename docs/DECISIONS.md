@@ -35,6 +35,7 @@ Data bazowa ustaleń: 2026-08-28. Strefa czasowa pierwszego wdrożenia: `Europe/
 29. Osobisty plan dnia należy do wykonawcy. Tylko wykonawca może przypiąć aktywne zadanie do własnego planu na bieżącą datę.
 30. Mobilny pasek nawigacji zawiera `Dzisiaj`, `Zadania`, centralne `Dodaj`, `Powiadomienia` i `Więcej`; szczegółowe statusy są filtrami, nie równorzędnymi głównymi celami nawigacji.
 31. Formularz tworzenia eksponuje tytuł, wykonawcę, termin i priorytet. Opis, widoczność, udostępnianie oraz cykliczność są opcjami rozwijanymi na żądanie.
+32. Polecenia Telegrama kończące lub przesuwające zadanie nie wymagają dokładnego tytułu. Tasker dopasowuje charakterystyczny fragment wyłącznie do aktywnych zadań, których użytkownik jest autorem lub wykonawcą, i wymaga doprecyzowania przy niejednoznacznym wyniku.
 
 ## Użytkownicy pilotażowi i role
 

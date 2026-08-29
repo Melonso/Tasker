@@ -45,7 +45,7 @@ Wdrożona wersja produkcyjna działa pod `https://tasker.dpkomis.pl`. Zrealizowa
 - PWA i Web Push przetestowane na prawdziwej przeglądarce,
 - synchronizacja Google Calendar przez OAuth,
 - Telegram tekstowy i głosowy z AI, dynamiczną listą wykonawców i bezpiecznym szkicem,
-- komendy Telegrama do kończenia, przesuwania i wyświetlania zadań,
+- komendy Telegrama do kończenia, przesuwania i wyświetlania zadań, z inteligentnym dopasowaniem zapamiętanego fragmentu zamiast wymogu dokładnego tytułu,
 - automatyczne zatwierdzanie kompletnego szkicu po 10 minutach,
 - zadania cykliczne dzienne, tygodniowe i miesięczne z pauzowaniem,
 - zespoły, ręczne udostępnianie zadań i preferencje kanałów powiadomień,

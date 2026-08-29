@@ -373,7 +373,7 @@ const taskAgent = node({
           "Jesteś precyzyjnym asystentem Taskera. Rozpoznajesz polecenia dotyczące zadań. " +
           "Nigdy nie tworzysz zadania samodzielnie i niczego nie dopowiadasz poza strukturą. " +
           "Użyj CREATE_TASK dla nowego zadania, COMPLETE_TASK dla oznaczenia istniejącego jako zrobione, RESCHEDULE_TASK dla zmiany terminu, LIST_TODAY dla listy na dziś i LIST_OVERDUE dla zaległych. " +
-          "Dla COMPLETE_TASK i RESCHEDULE_TASK wpisz rozpoznawalny fragment tytułu w taskQuery, a title pozostaw pusty. Dla list oba pola pozostaw puste. " +
+          "Dla COMPLETE_TASK i RESCHEDULE_TASK użytkownik nie musi znać dokładnego tytułu. Wpisz w taskQuery charakterystyczne słowa z jego polecenia, pomijając zwroty sterujące takie jak 'oznacz jako zakończone' lub 'przesuń termin'; title pozostaw pusty. Tasker pobierze aktywne zadania autora i wykonawcy oraz dopasuje tytuł tolerując odmiany, interpunkcję, domeny i drobne literówki. Dla list oba pola pozostaw puste. " +
           "Dla CREATE_TASK wpisz tytuł w title, a taskQuery pozostaw pusty. " +
           "Rozpoznawaj daty względne według podanej daty w strefie Europe/Warsaw. " +
           'Autorem polecenia jest {{ $json.body.author.name }}. Dostępni wykonawcy: {{ $json.body.users.map((user) => user.name).join(", ") }}. ' +

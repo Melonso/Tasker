@@ -12,6 +12,7 @@ import {
 import { dateTimePartsInZone, zonedDateTimeToUtc } from "@/domain/reminders";
 import { listAssignableUsers } from "@/tasks/queries";
 import { dueAtFromInput } from "@/tasks/service";
+import { matchTaskByQuery } from "./task-matching";
 
 export const TASK_DRAFT_DURATION_MS = 30 * 60 * 1000;
 
@@ -129,19 +130,19 @@ export async function createTaskActionDraft(user: AuthenticatedUser, input: Crea
       ),
     )
     .orderBy(asc(tasks.dueAt), asc(tasks.createdAt));
-  const query = normalizePerson(input.taskQuery);
-  const exact = candidates.filter((task) => normalizePerson(task.title) === query);
-  const partial = candidates.filter((task) => normalizePerson(task.title).includes(query));
-  const matches = exact.length ? exact : partial;
-  const task = matches.length === 1 ? matches[0] : null;
+  const resolution = matchTaskByQuery(candidates, input.taskQuery);
+  const task = resolution.task;
   const dueAt = input.intent === "RESCHEDULE_TASK" && input.dueDate
     ? dueAtFromInput(input.dueDate, input.dueTime, user)
     : null;
   let clarification: string | null = null;
   if (!task) {
-    clarification = matches.length > 1
-      ? `Znaleziono kilka zadań pasujących do „${input.taskQuery}”. Podaj dokładniejszy tytuł.`
-      : `Nie znaleziono aktywnego zadania pasującego do „${input.taskQuery}”.`;
+    const suggestions = resolution.ranked.map((match, index) => `${index + 1}. ${match.task.title}`).join("\n");
+    clarification = resolution.ambiguous
+      ? `Znalazłem kilka podobnych zadań. Napisz charakterystyczny fragment tytułu:\n${suggestions}`
+      : suggestions
+        ? `Nie mam pewności, o które zadanie chodzi. Najbliższe wyniki:\n${suggestions}`
+        : `Nie znaleziono aktywnego zadania pasującego do „${input.taskQuery}”.`;
   } else if (input.intent === "RESCHEDULE_TASK" && !dueAt) {
     clarification = "Podaj nową datę zadania.";
   }

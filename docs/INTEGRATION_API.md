@@ -69,6 +69,10 @@ Ten sam endpoint obsługuje także bezpieczne operacje na istniejących zadaniac
 { "telegramUserId": "123456789", "sourceEventId": "telegram-update-98767", "intent": "RESCHEDULE_TASK", "taskQuery": "wysłać raport", "dueDate": "2026-09-01", "dueTime": "09:00" }
 ```
 
+`taskQuery` nie musi być dokładnym tytułem. Tasker pobiera wszystkie aktywne zadania, których połączony użytkownik jest autorem lub wykonawcą, i ocenia podobieństwo do podanego fragmentu. Dopasowanie ignoruje wielkość liter, polskie znaki, interpunkcję oraz typowe elementy adresów internetowych, a także toleruje odmiany, prefiksy słów i drobne literówki. Przykładowo `wysłać stronę helpyou` dopasuje zadanie `Wysłać stronę www.helpyouprawo.pl panu Pawłowi`.
+
+Jeżeli dwa tytuły są podobnie prawdopodobne, Tasker nie wykonuje operacji na chybił-trafił. Zwraca `NEEDS_CLARIFICATION` z najbliższymi tytułami i prosi o bardziej charakterystyczny fragment. Zakończenie albo przesunięcie rozpoznanego zadania nadal wymaga ręcznego zatwierdzenia.
+
 Listy `LIST_TODAY` i `LIST_OVERDUE` zwracają od razu `kind: SUMMARY` i maksymalnie 20 zadań. Utworzenie, zakończenie i przesunięcie zwracają `kind: DRAFT`.
 
 ## Potwierdzenie szkicu
@@ -100,6 +104,7 @@ Anulowanie jest idempotentne i nie tworzy zadania. Potwierdzonego lub aktualnie 
 ## Zasady dla workflow AI
 
 - Model przygotowuje dane, ale nie otrzymuje dostępu do bazy.
+- Przy zakończeniu i przesunięciu model przekazuje jedynie charakterystyczne słowa w `taskQuery`; pełną listę dozwolonych aktywnych zadań pobiera i dopasowuje dopiero Tasker po uwierzytelnieniu użytkownika.
 - Kompletny szkic można zatwierdzić lub anulować ręcznie. Brak reakcji powoduje automatyczne zatwierdzenie po 10 minutach tylko przy tworzeniu zadania. Zakończenie i przesunięcie terminu zawsze wymagają ręcznego potwierdzenia.
 - Identyfikatory Telegrama są mapowane na aktywne konto Taskera.
 - Tasker ponownie waliduje wykonawcę, widoczność i role.
