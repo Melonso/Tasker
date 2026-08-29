@@ -201,13 +201,24 @@ Upload poza serwer jest bezpiecznie pomijany do czasu utworzenia chronionego pli
 
 W produkcji upload kieruje do aktywnego workflow n8n „Tasker — szyfrowany backup offsite”, który zapisuje pliki w osobnym folderze „Tasker Backups” na Google Drive. Pierwszy rzeczywisty zaszyfrowany dump i jego suma zostały przesłane oraz zweryfikowane 2026-08-29. Klucz szyfrowania znajduje się wyłącznie w chronionym katalogu `.secrets` na serwerze Taskera; n8n i Google Drive nigdy go nie otrzymują.
 
+Druga kopia klucza odzyskiwania jest przechowywana poza serwerem jako plik chroniony Windows DPAPI, przypisany do bieżącego konta użytkownika: `C:\Users\Ja\Documents\Tasker Recovery\tasker-backup-key.dpapi`. Nie jest to plik tekstowy i nie należy go wysyłać do repozytorium ani Google Drive. Do kontrolowanego odzyskania klucza służy `deploy/recover-tasker-backup-key.ps1`.
+
+Pełna próba odtworzenia offsite została wykonana 2026-08-29 na rzeczywistym pliku pobranym z Google Drive. Sprawdzono sumę SHA-256, odszyfrowano AES-256-CBC/PBKDF2, zweryfikowano katalog `pg_restore` i odtworzono kopię w izolowanej bazie. Wynik: 23 tabele, 4 zadania i poprawny schemat cykliczności. Baza testowa oraz pliki tymczasowe zostały usunięte po teście.
+
+Aktywny workflow n8n „Tasker — retencja backupów offsite” uruchamia się codziennie o 03:15 czasu `Europe/Warsaw`. Zachowuje 14 najnowszych zestawów dziennych, a następnie po jednym zestawie tygodniowym z 8 kolejnych tygodni. Plik dump i odpowiadająca mu suma są traktowane jako jeden zestaw. Stare pliki są przenoszone do kosza Google Drive, a nie kasowane bezpowrotnie. Źródło konfiguracji znajduje się w `n8n/tasker-offsite-retention.workflow.json`; ścieżka webhooka i identyfikator folderu są celowo zastąpione placeholderami. Produkcyjny workflow został sprawdzony 2026-08-29 na nieszkodliwym pliku technicznym, wykonanie n8n `252199` zakończyło się sukcesem.
+
+Procedura awaryjna:
+
+1. Pobrać plik `*.dump.enc` i odpowiadający mu `*.sha256` z folderu „Tasker Backups”.
+2. Na komputerze z tym samym kontem Windows odzyskać klucz do tymczasowego pliku: `powershell -File deploy/recover-tasker-backup-key.ps1 -ProtectedKeyPath "C:\Users\Ja\Documents\Tasker Recovery\tasker-backup-key.dpapi" -DestinationPath "C:\Temp\tasker-backup.key"`.
+3. Zweryfikować sumę SHA-256 zaszyfrowanego pliku przed odszyfrowaniem.
+4. Odszyfrować plik przez OpenSSL z AES-256-CBC, PBKDF2 i 200 000 iteracji, używając odzyskanego pliku klucza.
+5. Uruchomić `pg_restore --list`, a następnie odtworzyć dump wyłącznie do nowej, izolowanej bazy.
+6. Sprawdzić migracje, liczbę tabel i kluczowe dane, zanim baza zastąpi środowisko produkcyjne.
+7. Bezpiecznie usunąć tymczasowy jawny plik klucza i odszyfrowany dump.
+
 ## 11. Następny krok operacyjny
 
 Stos produkcyjny działa w `/home/dpkomis/apps/tasker-prod`, a publiczne endpointy `/api/health/ready` i `/api/health/operations` służą odpowiednio do kontroli aplikacji oraz całego procesu przypomnień. Szyfrowana kopia poza serwerem działa przez n8n i Google Drive.
 
-Następne kroki operacyjne to:
-
-1. zapisać klucz deszyfrujący również w bezpiecznym miejscu poza serwerem Taskera,
-2. wykonać pełną próbę awaryjną: pobranie kopii z Google Drive, sprawdzenie sumy SHA-256, odszyfrowanie i odtworzenie w izolowanej bazie,
-3. wdrożyć retencję plików w Google Drive, aby codzienne kopie i sumy nie rosły bez ograniczeń,
-4. obserwować metryki oraz uwagi czterech użytkowników podczas pilotażu.
+Klucz poza serwerem, pełna próba awaryjna oraz automatyczna retencja Google Drive są wdrożone i sprawdzone. Następnym krokiem operacyjnym jest obserwacja metryk i uwag czterech użytkowników podczas pilotażu oraz okresowe powtarzanie pełnego testu odtworzenia offsite.

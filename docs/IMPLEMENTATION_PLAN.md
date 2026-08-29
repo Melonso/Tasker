@@ -9,7 +9,8 @@
 - **Etap 4 – gotowy.** PWA, wielourządzeniowy Web Push i test z ustawień zostały wdrożone i sprawdzone.
 - **Etap 5 – podstawowy obieg gotowy.** OAuth, primary calendar, tworzenie, aktualizacja, zakończenie i odłączenie działają; wybór innego kalendarza pozostaje do wykonania.
 - **Etapy 6–7 – gotowe dla MVP.** Telegram przyjmuje tekst i głos, tworzy bezpieczne szkice, kończy i przesuwa zadania, pokazuje listy na dziś i zaległe oraz wysyła alerty zgodnie z preferencjami.
-- **Etap 8 – pilotaż aktywny.** Działają lokalne automatyczne backupy, szyfrowana kopia w Google Drive przez n8n, cotygodniowy test odtworzenia, zewnętrzny monitoring i metryki pilotażu uruchomionego 2026-08-29 dla czterech użytkowników.
+- **Etap 8 – pilotaż aktywny.** Działają lokalne automatyczne backupy, szyfrowana kopia w Google Drive przez n8n, sprawdzona pełna próba odtworzenia offsite, automatyczna retencja 14 zestawów dziennych + 8 tygodniowych, zewnętrzny monitoring i metryki pilotażu uruchomionego 2026-08-29 dla czterech użytkowników.
+- **Etap 9 – kierunek UX opisany.** Audyt popularnych aplikacji oraz priorytety następnej iteracji znajdują się w `docs/UX_RESEARCH_2026-08-29.md`. Pierwszy rekomendowany zakres to szybkie dodawanie, prawdziwy plan dnia, bardziej zadaniowa nawigacja mobilna i skanowalna lista.
 
 ## 1. Rekomendowana architektura
 

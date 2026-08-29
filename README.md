@@ -19,6 +19,7 @@ Pierwsza wersja produktu będzie łączyć:
 - [Audyt serwera produkcyjnego](docs/SERVER_AUDIT.md)
 - [Rejestr decyzji](docs/DECISIONS.md)
 - [API integracyjne dla n8n i Telegrama](docs/INTEGRATION_API.md)
+- [Audyt UX i kierunek rozwoju](docs/UX_RESEARCH_2026-08-29.md)
 
 ## Stan implementacji
 
@@ -45,7 +46,7 @@ Wdrożona wersja produkcyjna działa pod `https://tasker.dpkomis.pl`. Zrealizowa
 - automatyczne zatwierdzanie kompletnego szkicu po 10 minutach,
 - zadania cykliczne dzienne, tygodniowe i miesięczne z pauzowaniem,
 - zespoły, ręczne udostępnianie zadań i preferencje kanałów powiadomień,
-- automatyczne kopie bazy, szyfrowany backup offsite w Google Drive, test odtworzenia i monitoring przez n8n,
+- automatyczne kopie bazy, szyfrowany backup offsite w Google Drive, sprawdzony pełny test odtworzenia, retencja 14 kopii dziennych + 8 tygodniowych i monitoring przez n8n,
 - aktywny 14-dniowy pilotaż z metrykami w panelu administratora,
 - wdrożony i zweryfikowany stos produkcyjny na `127.0.0.1:8090` za Cloudflare Tunnel.
 
