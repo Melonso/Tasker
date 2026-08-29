@@ -203,4 +203,11 @@ W produkcji upload kieruje do aktywnego workflow n8n „Tasker — szyfrowany ba
 
 ## 11. Następny krok operacyjny
 
-Stos produkcyjny działa w `/home/dpkomis/apps/tasker-prod`, a publiczne endpointy `/api/health/ready` i `/api/health/operations` służą odpowiednio do kontroli aplikacji oraz całego procesu przypomnień. Następnym krokiem operacyjnym jest skonfigurowanie szyfrowanej kopii backupów poza serwerem.
+Stos produkcyjny działa w `/home/dpkomis/apps/tasker-prod`, a publiczne endpointy `/api/health/ready` i `/api/health/operations` służą odpowiednio do kontroli aplikacji oraz całego procesu przypomnień. Szyfrowana kopia poza serwerem działa przez n8n i Google Drive.
+
+Następne kroki operacyjne to:
+
+1. zapisać klucz deszyfrujący również w bezpiecznym miejscu poza serwerem Taskera,
+2. wykonać pełną próbę awaryjną: pobranie kopii z Google Drive, sprawdzenie sumy SHA-256, odszyfrowanie i odtworzenie w izolowanej bazie,
+3. wdrożyć retencję plików w Google Drive, aby codzienne kopie i sumy nie rosły bez ograniczeń,
+4. obserwować metryki oraz uwagi czterech użytkowników podczas pilotażu.
