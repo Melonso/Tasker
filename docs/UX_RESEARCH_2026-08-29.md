@@ -6,7 +6,7 @@ Data analizy: 2026-08-29
 
 Pierwsza iteracja P0 została wdrożona 2026-08-29:
 
-- zadania znajdują się przed licznikami, a statystyki są domyślnie zwinięte,
+- zadania znajdują się przed licznikami, a statystyki są stale widoczne pod listą,
 - „Dzisiaj” ma sekcje „Po terminie”, „Plan na dziś” i „Termin na dziś”,
 - wykonawca może przypiąć dowolne własne aktywne zadanie do dzisiejszego planu,
 - lista została zagęszczona i eksponuje termin oraz wysoki/pilny priorytet,
@@ -103,7 +103,7 @@ Asana oddziela ostatnio przypisane sprawy od uporządkowanej listy użytkownika,
 - Sekcje: „Po terminie”, „Plan na dziś”, „Dziś o konkretnej godzinie”.
 - Użytkownik może przypiąć do planu maksymalnie kilka priorytetów niezależnie od terminu.
 - Rano pojawia się niewielki panel „Zaplanuj dzień” z sugestiami: zaległe, pilne i kończące się dziś.
-- Kafle statystyk na telefonie zmieniają się w jeden zwijany pasek podsumowania.
+- Kafle statystyk na telefonie pozostają widoczne w zwartym, dwukolumnowym podsumowaniu.
 
 #### 3. Mobilna nawigacja nastawiona na działanie
 

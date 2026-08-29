@@ -41,7 +41,7 @@ Widoki w interfejsie:
 - **Cykliczne** – zadania posiadające regułę powtarzania,
 - **Zrobione** – zakończone archiwum.
 
-Widok **Dzisiaj** ma hierarchię zadaniową, nie statystyczną. Najpierw pokazuje pracę w sekcjach „Po terminie”, „Plan na dziś” i „Termin na dziś”. Liczniki kategorii są wtórnym, domyślnie zwiniętym podsumowaniem. Wykonawca może przypiąć własne aktywne zadanie do planu na bieżący dzień niezależnie od jego terminu.
+Widok **Dzisiaj** ma hierarchię zadaniową, nie statystyczną. Najpierw pokazuje pracę w sekcjach „Po terminie”, „Plan na dziś” i „Termin na dziś”. Liczniki kategorii są wtórnym, stale rozwiniętym podsumowaniem. Wykonawca może przypiąć własne aktywne zadanie do planu na bieżący dzień niezależnie od jego terminu.
 
 Zmiana na `WAITING` wymaga krótkiego powodu i opcjonalnej daty ponownego sprawdzenia. Zakończenie zadania zapisuje wykonawcę i czas wykonania.
 
@@ -171,7 +171,7 @@ Ustawienia globalne są dostępne wyłącznie administratorowi aplikacji i obejm
 ## 3. Ekrany MVP
 
 1. **Logowanie i aktywacja zaproszenia**.
-2. **Dzisiaj** – zadania przeterminowane, świadomie przypięte do planu oraz z terminem na dziś; statystyki pozostają zwinięte pod listą.
+2. **Dzisiaj** – zadania przeterminowane, świadomie przypięte do planu oraz z terminem na dziś; statystyki pozostają stale widoczne pod listą.
 3. **Bieżące**.
 4. **Oczekujące**.
 5. **Delegowane**.

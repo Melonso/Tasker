@@ -479,39 +479,19 @@ h2 {
   background: rgba(255, 255, 255, 0.62);
 }
 
-.dashboard-summary > summary {
+.dashboard-summary-heading {
   display: flex;
   min-height: 48px;
   align-items: center;
-  justify-content: space-between;
-  gap: 14px;
   padding: 0 16px;
   color: #4f5f58;
-  cursor: pointer;
-  list-style: none;
+}
+
+.dashboard-summary-heading h2 {
+  margin: 0;
   font-size: 11px;
   font-weight: 800;
-}
-
-.dashboard-summary > summary::-webkit-details-marker {
-  display: none;
-}
-
-.dashboard-summary > summary::after {
-  content: "+";
-  font-size: 17px;
-  font-weight: 500;
-}
-
-.dashboard-summary[open] > summary::after {
-  content: "−";
-}
-
-.dashboard-summary > summary small {
-  margin-left: auto;
-  color: var(--muted);
-  font-size: 9px;
-  font-weight: 550;
+  letter-spacing: 0.01em;
 }
 
 .summary-strip {
@@ -2079,12 +2059,8 @@ h2 {
     max-width: 240px;
   }
 
-  .dashboard-summary > summary {
+  .dashboard-summary-heading {
     padding: 0 13px;
-  }
-
-  .dashboard-summary > summary small {
-    display: none;
   }
 
   .summary-strip {

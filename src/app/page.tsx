@@ -230,18 +230,17 @@ export default async function DashboardPage({
         )}
       </section>
 
-      <details className="dashboard-summary">
-        <summary>
-          <span>Podsumowanie wszystkich zadań</span>
-          <small>Rozwiń, jeśli potrzebujesz liczb</small>
-        </summary>
+      <section className="dashboard-summary" aria-labelledby="dashboard-summary-title">
+        <div className="dashboard-summary-heading">
+          <h2 id="dashboard-summary-title">Podsumowanie wszystkich zadań</h2>
+        </div>
         <div className="summary-strip" aria-label="Podsumowanie zadań">
           <Link href="/?view=current"><span>Bieżące</span><strong>{currentTasks.length}</strong></Link>
           <Link href="/?view=waiting"><span>Oczekujące</span><strong>{waitingTasks.length}</strong></Link>
           <Link href="/?view=delegated"><span>Delegowane</span><strong>{delegatedTasks.length}</strong></Link>
           <Link className={overdueCount ? "has-alert" : ""} href="/"><span>Po terminie</span><strong>{overdueCount}</strong></Link>
         </div>
-      </details>
+      </section>
     </div>
   );
 }

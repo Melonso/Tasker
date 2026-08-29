@@ -26,7 +26,7 @@ Pierwsza wersja produktu będzie łączyć:
 Wdrożona wersja produkcyjna działa pod `https://tasker.dpkomis.pl`. Zrealizowane są:
 
 - aplikacja Next.js 16 i React 19,
-- responsywny pulpit stawiający zadania przed statystykami, ustawienia użytkownika, avatary i administracja,
+- responsywny pulpit stawiający zadania przed stale widocznym podsumowaniem statystyk, ustawienia użytkownika, avatary i administracja,
 - wersjonowany schemat PostgreSQL i migracje Drizzle,
 - seed czterech użytkowników pilotażowych i ich ról,
 - reguły przypomnień z obsługą strefy `Europe/Warsaw`,
