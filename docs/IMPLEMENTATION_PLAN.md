@@ -144,7 +144,7 @@ Zakres:
 - bot i bezpieczne połączenie konta jednorazowym kodem,
 - polecenia tekstowe do tworzenia, delegowania, przesuwania i kończenia,
 - bezpieczne dopasowanie częściowego tytułu do aktywnych zadań autora lub wykonawcy, z doprecyzowaniem przy podobnych wynikach,
-- deterministyczne skróty `/dzisiaj`, `/jutro`, `/zalegle` i `/zadania`, które omijają model językowy,
+- deterministyczne skróty `/dzisiaj`, `/jutro`, `/zalegle` i `/zadania` oraz odpowiadające im naturalne prośby tekstowe i głosowe, które omijają model językowy,
 - podgląd przed zapisem z przyciskami Zapisz/Popraw/Anuluj,
 - alerty Telegram zgodne z preferencjami,
 - ograniczanie liczby żądań i ochrona webhooka.

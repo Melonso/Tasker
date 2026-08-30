@@ -7,7 +7,7 @@ Pierwsza wersja produktu będzie łączyć:
 - panel webowy/PWA,
 - powiadomienia w aplikacji i web push,
 - Google Calendar,
-- Telegram z obsługą tekstu i wiadomości głosowych,
+- Telegram z obsługą tekstu i wiadomości głosowych, w tym deterministycznym rozpoznawaniem naturalnych próśb o listy zadań,
 - delegowanie, eskalacje i historię zmian,
 - prywatne, firmowe oraz bezpośrednio udostępniane zadania.
 

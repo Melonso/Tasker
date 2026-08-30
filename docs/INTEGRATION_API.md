@@ -85,6 +85,8 @@ Listy `LIST_TODAY`, `LIST_TOMORROW` i `LIST_OVERDUE` zwracają od razu `kind: SU
 
 Workflow rozpoznaje pole `message.voice.file_id`, pobiera plik z Telegrama i przekazuje jego binarną zawartość do węzła OpenAI `Transcribe a recording` z językiem polskim. Wynik transkrypcji trafia następnie do dokładnie tej samej ścieżki interpretacji, walidacji i szkicu co wiadomość tekstowa. Tasker nie zapisuje oryginalnego nagrania ani transkrypcji w swojej bazie; techniczna retencja danych wykonania po stronie n8n podlega konfiguracji instancji n8n.
 
+Naturalne prośby o listę, np. „Pokaż moje zadania na jutro”, są rozpoznawane deterministycznie po transkrypcji i kierowane bezpośrednio do odpowiedniej operacji `LIST_*`. Dzięki temu nie mogą zostać omyłkowo potraktowane jako polecenie utworzenia zadania. Reguła działa identycznie dla tekstu i głosu; model AI pozostaje używany do bardziej swobodnych poleceń zmieniających zadania.
+
 ## Potwierdzenie szkicu
 
 ```http
@@ -130,6 +132,8 @@ Workflow mapuje komendy bez udziału modelu AI:
 - `/zadania` — pełne zestawienie Bieżących, Oczekujących, Delegowanych i Cyklicznych; długie kategorie są dzielone na kolejne wiadomości,
 - `/dodaj` — instrukcja dodawania zadania tekstem lub głosem,
 - `/pomoc` — pełna skrócona instrukcja i odnośnik do ustawień.
+
+Te same listy można wywołać naturalnym zdaniem tekstowym albo głosowym zawierającym prośbę o pokazanie zadań i zakres: dziś, jutro, zaległe albo wszystkie/kategorie.
 
 Telegram w zwykłym trybie HTML nie obsługuje znacznika `<table>`. Workflow używa więc HTML do nagłówków i klikalnych tytułów, ale dane prezentuje w mobilnych sekcjach kategorii zamiast w szerokiej tabeli. To zachowuje czytelność na telefonie i mieści się w limicie wiadomości.
 

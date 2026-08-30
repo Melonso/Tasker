@@ -99,6 +99,14 @@ const normalizeUpdate = node({
         "else if (/^\\/jutro(?:@\\w+)?$/i.test(text)) directIntent = 'LIST_TOMORROW';\n" +
         "else if (/^\\/zalegle(?:@\\w+)?$/i.test(text)) directIntent = 'LIST_OVERDUE';\n" +
         "else if (/^\\/zadania(?:@\\w+)?$/i.test(text)) directIntent = 'LIST_ALL';\n" +
+        "else {\n" +
+        "  const normalizedText = text.toLocaleLowerCase('pl-PL').normalize('NFD').replace(/[\\u0300-\\u036f]/g, '');\n" +
+        "  const asksForTasks = /\\b(pokaz|wyswietl|wypisz|sprawdz|jakie|lista|zestawienie)\\b/.test(normalizedText) && /\\bzadan(?:ia|ie|iach)?\\b/.test(normalizedText);\n" +
+        "  if (asksForTasks && /\\b(?:jutro|na jutro)\\b/.test(normalizedText)) directIntent = 'LIST_TOMORROW';\n" +
+        "  else if (asksForTasks && /\\b(?:dzis(?:iaj)?|na dzis)\\b/.test(normalizedText)) directIntent = 'LIST_TODAY';\n" +
+        "  else if (asksForTasks && /(?:\\bzalegl(?:e|ych|ymi)?\\b|po terminie)/.test(normalizedText)) directIntent = 'LIST_OVERDUE';\n" +
+        "  else if (asksForTasks && /(?:\\bwszystk(?:ie|ich|imi)?\\b|\\bkategori(?:e|ach)\\b)/.test(normalizedText)) directIntent = 'LIST_ALL';\n" +
+        "}\n" +
         "const callbackData = String(callback?.data || '');\n" +
         "let route = 'create';\n" +
         "let draftId = '';\n" +
