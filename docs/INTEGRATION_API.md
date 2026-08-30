@@ -149,6 +149,8 @@ Te same listy można wywołać naturalnym zdaniem tekstowym albo głosowym zawie
 
 Udostępnianie i przekazywanie pozostają poleceniami naturalnymi, ponieważ zawsze wymagają nazwy osoby i fragmentu tytułu; osobna szybka komenda nie skróciłaby tego przepływu. Przykłady: `dodaj Michała do zadania z Polcardem` oraz `przekaż zadanie z Polcardem Michałowi`.
 
+Pusta albo bardzo krótka wiadomość (mniej niż 3 znaki, np. `?`) nie jest przekazywana do modelu z pamięcią rozmowy. Workflow pokazuje wtedy instrukcję, aby model nie powtarzał przypadkowo poprzedniej intencji.
+
 Telegram w zwykłym trybie HTML nie obsługuje znacznika `<table>`. Workflow używa więc HTML do nagłówków i klikalnych tytułów, ale dane prezentuje w mobilnych sekcjach kategorii zamiast w szerokiej tabeli. To zachowuje czytelność na telefonie i mieści się w limicie wiadomości.
 
 Wpis dla BotFathera (`/setcommands`):
