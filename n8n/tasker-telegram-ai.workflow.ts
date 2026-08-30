@@ -242,7 +242,7 @@ const confirmReply = node({
       operation: "sendMessage",
       chatId: expr('{{ $("Rozpoznaj rodzaj polecenia").item.json.chatId }}'),
       text: expr(
-        '{{ $json.statusCode >= 200 && $json.statusCode < 300 ? ($json.body?.preview?.intent === "COMPLETE_TASK" ? "✅ Zadanie zostało oznaczone jako zrobione." : ($json.body?.preview?.intent === "RESCHEDULE_TASK" ? "✅ Termin zadania został przesunięty." : ($json.body?.preview?.intent === "SHARE_TASK" ? "✅ Zadanie zostało udostępnione." : ($json.body?.preview?.intent === "REASSIGN_TASK" ? "✅ Zadanie zostało przekazane nowemu wykonawcy." : "✅ Zadanie zostało utworzone w Taskerze."))) : "❌ Nie udało się wykonać polecenia: " + ($json.body?.message ?? $json.body?.error ?? "nieznany błąd") }}',
+        '{{ $json.statusCode >= 200 && $json.statusCode < 300 ? ({ COMPLETE_TASK: "✅ Zadanie zostało oznaczone jako zrobione.", RESCHEDULE_TASK: "✅ Termin zadania został przesunięty.", SHARE_TASK: "✅ Zadanie zostało udostępnione.", REASSIGN_TASK: "✅ Zadanie zostało przekazane nowemu wykonawcy." }[$json.body?.preview?.intent] ?? "✅ Zadanie zostało utworzone w Taskerze.") : "❌ Nie udało się wykonać polecenia: " + ($json.body?.message ?? $json.body?.error ?? "nieznany błąd") }}',
       ),
       additionalFields: { appendAttribution: false, disable_web_page_preview: true },
     },

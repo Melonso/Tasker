@@ -162,6 +162,8 @@ Kontrakt `3` wdrożono produkcyjnie 2026-08-30 razem z aktywną wersją workflow
 
 Po pierwszym teście Telegrama poprawiono błąd składni wyrażenia podglądu dla nowych intencji oraz skierowano wiadomości krótsze niż 3 znaki bezpośrednio do pomocy. Trzy błędne wykonania zatrzymały się przed wysłaniem podglądu i nie zmieniły żadnego zadania.
 
+Kolejny test potwierdził wykonanie `SHARE_TASK`, lecz ujawnił niezależny błąd składni komunikatu końcowego. Sama operacja zwróciła `CONFIRMED`, a ponowne kliknięcia były idempotentne. Zagnieżdżony warunek komunikatu zastąpiono mapą intencji, aby ograniczyć ryzyko podobnych błędów przy następnych operacjach.
+
 ## 8. Procedura pierwszego wdrożenia
 
 1. Wykonać odczytowy audyt SSH i zapisać bezpieczne wnioski bez sekretów.
