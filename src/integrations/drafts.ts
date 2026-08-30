@@ -10,7 +10,7 @@ import {
   tasks,
 } from "@/db/schema";
 import { dateTimePartsInZone, zonedDateTimeToUtc } from "@/domain/reminders";
-import { listAssignableUsers } from "@/tasks/queries";
+import { listAssignableUsers, listTasksForView, type TaskView } from "@/tasks/queries";
 import { dueAtFromInput } from "@/tasks/service";
 import { matchTaskByQuery } from "./task-matching";
 
@@ -183,15 +183,29 @@ export async function createTaskActionDraft(user: AuthenticatedUser, input: Crea
   return draft;
 }
 
-export async function telegramTaskSummary(user: AuthenticatedUser, view: "TODAY" | "OVERDUE") {
-  const now = new Date();
-  const local = dateTimePartsInZone(now, user.timeZone);
-  const start = zonedDateTimeToUtc({ year: local.year, month: local.month, day: local.day, hour: 0 }, user.timeZone);
-  const nextDate = new Date(Date.UTC(local.year, local.month - 1, local.day + 1));
+export type TelegramTaskSummaryView = "TODAY" | "TOMORROW" | "OVERDUE";
+
+export function telegramSummaryBounds(now: Date, timeZone: string, view: TelegramTaskSummaryView) {
+  const local = dateTimePartsInZone(now, timeZone);
+  const dayOffset = view === "TOMORROW" ? 1 : 0;
+  const targetDate = new Date(Date.UTC(local.year, local.month - 1, local.day + dayOffset));
+  const start = zonedDateTimeToUtc({
+    year: targetDate.getUTCFullYear(),
+    month: targetDate.getUTCMonth() + 1,
+    day: targetDate.getUTCDate(),
+    hour: 0,
+  }, timeZone);
+  const nextDate = new Date(Date.UTC(local.year, local.month - 1, local.day + dayOffset + 1));
   const end = zonedDateTimeToUtc(
     { year: nextDate.getUTCFullYear(), month: nextDate.getUTCMonth() + 1, day: nextDate.getUTCDate(), hour: 0 },
-    user.timeZone,
+    timeZone,
   );
+  return { start, end };
+}
+
+export async function telegramTaskSummary(user: AuthenticatedUser, view: TelegramTaskSummaryView) {
+  const now = new Date();
+  const { start, end } = telegramSummaryBounds(now, user.timeZone, view);
   const { db } = getDatabaseClient();
   const rows = await db
     .select({ id: tasks.id, title: tasks.title, dueAt: tasks.dueAt, priority: tasks.priority })
@@ -203,6 +217,28 @@ export async function telegramTaskSummary(user: AuthenticatedUser, view: "TODAY"
       ? task.dueAt < now
       : task.dueAt >= start && task.dueAt < end))
     .slice(0, 20);
+}
+
+const telegramOverviewViews = ["current", "waiting", "delegated", "recurring"] as const satisfies readonly TaskView[];
+
+export async function telegramTaskOverview(user: AuthenticatedUser) {
+  const rowsByView = await Promise.all(telegramOverviewViews.map(async (view) => {
+    const rows = await listTasksForView(user, view);
+    return [view, rows.map((task) => ({
+      id: task.id,
+      title: task.title,
+      dueAt: task.dueAt,
+      priority: task.priority,
+      assignee: `${task.assigneeFirstName} ${task.assigneeLastName}`,
+    }))] as const;
+  }));
+  return Object.fromEntries(rowsByView) as Record<(typeof telegramOverviewViews)[number], Array<{
+    id: string;
+    title: string;
+    dueAt: Date | null;
+    priority: "LOW" | "NORMAL" | "HIGH" | "URGENT";
+    assignee: string;
+  }>>;
 }
 
 export function draftResponse(draft: typeof taskCommandDrafts.$inferSelect) {

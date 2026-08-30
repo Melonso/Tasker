@@ -134,7 +134,7 @@ Minimalne intencje MVP:
 - deleguj zadanie,
 - przesuń termin,
 - oznacz jako wykonane,
-- pokaż zadania na dziś lub przeterminowane.
+- pokaż zadania na dziś, jutro, przeterminowane albo pełne zestawienie aktywnych kategorii.
 
 Przykład:
 
@@ -150,7 +150,7 @@ System przygotowuje podgląd:
 
 Kompletny szkic można potwierdzić przyciskiem „Zapisz” lub odrzucić. Brak reakcji przez 10 minut powoduje automatyczne utworzenie zadania i wysłanie potwierdzenia. Niejednoznaczna osoba, data lub zakres widoczności zawsze wymaga doprecyzowania i nigdy nie jest zatwierdzana automatycznie.
 
-Transkrypcja mowy działa przez wymienny interfejs dostawcy, aby usługę można było zmienić bez przebudowy logiki zadań. Oryginalne nagranie powinno być usuwane po przetworzeniu zgodnie z ustaloną retencją; domyślna rekomendacja to usunięcie natychmiast po poprawnej transkrypcji.
+Transkrypcja mowy działa przez węzeł OpenAI w n8n, oddzielony od logiki biznesowej Taskera, dzięki czemu dostawcę można zmienić bez przebudowy obsługi zadań. Tasker nie zapisuje nagrania ani transkrypcji w swojej bazie. Plik binarny podlega retencji technicznej instancji n8n; docelową polityką pozostaje możliwie szybkie usuwanie danych wykonania po przetworzeniu.
 
 ### 2.8 Moje ustawienia
 

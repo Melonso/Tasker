@@ -30,7 +30,9 @@ Jeśli komenda jest potrzebna, w ramach tej samej zmiany należy:
 Obecna lista szybkich komend:
 
 - `/dzisiaj` — zadania na dziś,
+- `/jutro` — zadania z terminem na jutro,
 - `/zalegle` — zadania po terminie,
+- `/zadania` — wszystkie aktywne zadania w głównych kategoriach,
 - `/dodaj` — instrukcja dodawania zadania,
 - `/pomoc` — skrócona instrukcja i możliwości bota.
 

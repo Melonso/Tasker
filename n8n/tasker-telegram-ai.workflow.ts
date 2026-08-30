@@ -33,6 +33,54 @@ const telegramTrigger = trigger({
   ],
 });
 
+const isVoiceMessage = ifElse({
+  version: 2.3,
+  config: {
+    name: "Czy to wiadomość głosowa?",
+    parameters: {
+      conditions: {
+        options: { caseSensitive: true, leftValue: "", typeValidation: "strict" },
+        conditions: [{
+          leftValue: expr("{{ $json.message?.voice?.file_id }}"),
+          rightValue: "",
+          operator: { type: "string", operation: "exists", singleValue: true },
+        }],
+        combinator: "and",
+      },
+    },
+  },
+});
+
+const downloadVoiceMessage = node({
+  type: "n8n-nodes-base.telegram",
+  version: 1.2,
+  config: {
+    name: "Pobierz wiadomość głosową",
+    parameters: {
+      resource: "file",
+      fileId: expr("{{ $json.message.voice.file_id }}"),
+      additionalFields: {},
+    },
+    credentials: { telegramApi: newCredential("Tasker Telegram Bot") },
+  },
+  output: [{ file_id: "voice-file-id", file_path: "voice/file_1.oga" }],
+});
+
+const transcribeVoiceMessage = node({
+  type: "@n8n/n8n-nodes-langchain.openAi",
+  version: 1.8,
+  config: {
+    name: "Transkrybuj wiadomość głosową",
+    parameters: {
+      resource: "audio",
+      operation: "transcribe",
+      options: { language: "pl", prompt: "Polecenie dotyczące zadań w języku polskim." },
+    },
+    credentials: { openAiApi: newCredential("Tasker OpenAI") },
+  },
+  output: [{ text: "Dodaj zadanie oddzwonić jutro o 15:00" }],
+});
+
 const normalizeUpdate = node({
   type: "n8n-nodes-base.code",
   version: 2,
@@ -42,12 +90,15 @@ const normalizeUpdate = node({
       mode: "runOnceForEachItem",
       language: "javaScript",
       jsCode:
-        "const update = $json;\n" +
+        "const update = $(\"Odbierz wiadomość z Telegrama\").item.json;\n" +
         "const callback = update.callback_query || null;\n" +
         "const message = callback?.message || update.message || null;\n" +
-        "let text = String(message?.text || '').trim();\n" +
-        "if (/^\\/dzisiaj(?:@\\w+)?$/i.test(text)) text = 'pokaż zadania na dziś';\n" +
-        "else if (/^\\/zalegle(?:@\\w+)?$/i.test(text)) text = 'pokaż zaległe zadania';\n" +
+        "let text = String($json.text || message?.text || '').trim();\n" +
+        "let directIntent = '';\n" +
+        "if (/^\\/dzisiaj(?:@\\w+)?$/i.test(text)) directIntent = 'LIST_TODAY';\n" +
+        "else if (/^\\/jutro(?:@\\w+)?$/i.test(text)) directIntent = 'LIST_TOMORROW';\n" +
+        "else if (/^\\/zalegle(?:@\\w+)?$/i.test(text)) directIntent = 'LIST_OVERDUE';\n" +
+        "else if (/^\\/zadania(?:@\\w+)?$/i.test(text)) directIntent = 'LIST_ALL';\n" +
         "const callbackData = String(callback?.data || '');\n" +
         "let route = 'create';\n" +
         "let draftId = '';\n" +
@@ -57,15 +108,17 @@ const normalizeUpdate = node({
         "else {\n" +
         "  const link = text.match(/^\\/(?:start|polacz)\\s+([A-Z0-9]{6,20})$/i);\n" +
         "  if (link) { route = 'link'; linkCode = link[1].toUpperCase(); }\n" +
+        "  else if (directIntent) route = 'list';\n" +
         "  else if (!text || /^\\/(?:start|pomoc|help|dodaj)(?:@\\w+)?$/i.test(text)) route = 'help';\n" +
         "}\n" +
-        "return { json: { route, text, draftId, linkCode, telegramUserId: String(callback?.from?.id || message?.from?.id || ''), chatId: String(message?.chat?.id || ''), callbackQueryId: String(callback?.id || ''), sourceEventId: 'telegram-update-' + String(update.update_id || '') } };",
+        "return { json: { route, text, directIntent, draftId, linkCode, telegramUserId: String(callback?.from?.id || message?.from?.id || ''), chatId: String(message?.chat?.id || ''), callbackQueryId: String(callback?.id || ''), sourceEventId: 'telegram-update-' + String(update.update_id || '') } };",
     },
   },
   output: [
     {
       route: "create",
       text: "Dodaj zadanie dla Michała: oddzwonić jutro o 15:00",
+      directIntent: "",
       draftId: "",
       linkCode: "",
       telegramUserId: "123456789",
@@ -82,8 +135,8 @@ const routeCommand = switchCase({
     name: "Wybierz operację",
     parameters: {
       mode: "expression",
-      numberOutputs: 5,
-      output: expr("{{ ({ link: 0, confirm: 1, cancel: 2, create: 3, help: 4 })[$json.route] ?? 4 }}"),
+      numberOutputs: 6,
+      output: expr("{{ ({ link: 0, confirm: 1, cancel: 2, create: 3, help: 4, list: 5 })[$json.route] ?? 4 }}"),
     },
   },
 });
@@ -299,7 +352,7 @@ const taskParser = outputParser({
           "priority",
         ],
         properties: {
-          intent: { type: "string", enum: ["CREATE_TASK", "COMPLETE_TASK", "RESCHEDULE_TASK", "LIST_TODAY", "LIST_OVERDUE"] },
+          intent: { type: "string", enum: ["CREATE_TASK", "COMPLETE_TASK", "RESCHEDULE_TASK", "LIST_TODAY", "LIST_TOMORROW", "LIST_OVERDUE", "LIST_ALL"] },
           title: { type: "string", maxLength: 300 },
           taskQuery: { type: "string", maxLength: 300 },
           description: { type: "string", maxLength: 5000 },
@@ -372,7 +425,7 @@ const taskAgent = node({
         systemMessage: expr(
           "Jesteś precyzyjnym asystentem Taskera. Rozpoznajesz polecenia dotyczące zadań. " +
           "Nigdy nie tworzysz zadania samodzielnie i niczego nie dopowiadasz poza strukturą. " +
-          "Użyj CREATE_TASK dla nowego zadania, COMPLETE_TASK dla oznaczenia istniejącego jako zrobione, RESCHEDULE_TASK dla zmiany terminu, LIST_TODAY dla listy na dziś i LIST_OVERDUE dla zaległych. " +
+          "Użyj CREATE_TASK dla nowego zadania, COMPLETE_TASK dla oznaczenia istniejącego jako zrobione, RESCHEDULE_TASK dla zmiany terminu, LIST_TODAY dla listy na dziś, LIST_TOMORROW dla listy na jutro, LIST_OVERDUE dla zaległych i LIST_ALL dla zestawienia wszystkich aktywnych kategorii. " +
           "Dla COMPLETE_TASK i RESCHEDULE_TASK użytkownik nie musi znać dokładnego tytułu. Wpisz w taskQuery charakterystyczne słowa z jego polecenia, pomijając zwroty sterujące takie jak 'oznacz jako zakończone' lub 'przesuń termin'; title pozostaw pusty. Tasker pobierze aktywne zadania autora i wykonawcy oraz dopasuje tytuł tolerując odmiany, interpunkcję, domeny i drobne literówki. Dla list oba pola pozostaw puste. " +
           "Dla CREATE_TASK wpisz tytuł w title, a taskQuery pozostaw pusty. " +
           "Rozpoznawaj daty względne według podanej daty w strefie Europe/Warsaw. " +
@@ -443,6 +496,29 @@ const createDraft = node({
   ],
 });
 
+const directListRequest = node({
+  type: "n8n-nodes-base.httpRequest",
+  version: 4.5,
+  config: {
+    name: "Pobierz szybką listę z Taskera",
+    parameters: {
+      method: "POST",
+      url: "https://tasker.dpkomis.pl/api/integrations/commands/drafts",
+      authentication: "genericCredentialType",
+      genericAuthType: "httpBearerAuth",
+      sendBody: true,
+      contentType: "json",
+      specifyBody: "json",
+      jsonBody: expr(
+        '{{ { telegramUserId: $("Rozpoznaj rodzaj polecenia").item.json.telegramUserId, sourceEventId: $("Rozpoznaj rodzaj polecenia").item.json.sourceEventId, intent: $("Rozpoznaj rodzaj polecenia").item.json.directIntent } }}',
+      ),
+      options: { response: { response: { fullResponse: true, neverError: true, responseFormat: "json" } } },
+    },
+    credentials: { httpBearerAuth: { id: "vtvrzLWu4B9S4lTr", name: "Tasker API" } },
+  },
+  output: [{ body: { kind: "SUMMARY", view: "TOMORROW", tasks: [] }, statusCode: 200 }],
+});
+
 const isSummary = ifElse({
   version: 2.3,
   config: {
@@ -457,6 +533,71 @@ const isSummary = ifElse({
   },
 });
 
+const formatSummary = node({
+  type: "n8n-nodes-base.code",
+  version: 2,
+  config: {
+    name: "Sformatuj listę zadań",
+    parameters: {
+      mode: "runOnceForAllItems",
+      language: "javaScript",
+      jsCode: `const body = $input.first().json.body || {};
+const escapeHtml = (value) => String(value || "")
+  .replace(/&/g, "&amp;")
+  .replace(/</g, "&lt;")
+  .replace(/>/g, "&gt;")
+  .replace(/"/g, "&quot;");
+const dueLabel = (value) => value
+  ? " · " + DateTime.fromISO(value).setZone("Europe/Warsaw").toFormat("dd.MM HH:mm")
+  : " · bez terminu";
+const taskLine = (task, index, showAssignee) => {
+  const title = escapeHtml(task.title);
+  const url = "https://tasker.dpkomis.pl/tasks/" + encodeURIComponent(task.id);
+  const assignee = showAssignee && task.assignee ? " · " + escapeHtml(task.assignee) : "";
+  return (index + 1) + ". <a href=\"" + url + "\">" + title + "</a>" + dueLabel(task.dueAt) + assignee;
+};
+const chunksForGroup = (icon, label, tasks, showAssignee) => {
+  const heading = icon + " <b>" + label + " (" + tasks.length + ")</b>";
+  if (!tasks.length) return [heading + "\nBrak zadań."];
+  const chunks = [];
+  let message = heading;
+  tasks.forEach((task, index) => {
+    const line = "\n" + taskLine(task, index, showAssignee);
+    if (message.length + line.length > 3600) {
+      chunks.push(message);
+      message = heading + " — ciąg dalszy" + line;
+    } else {
+      message += line;
+    }
+  });
+  chunks.push(message);
+  return chunks;
+};
+if (body.view === "ALL") {
+  const definitions = [
+    ["🟢", "Bieżące", body.groups?.current || [], false],
+    ["🟠", "Oczekujące", body.groups?.waiting || [], false],
+    ["🔵", "Delegowane", body.groups?.delegated || [], true],
+    ["🔁", "Cykliczne", body.groups?.recurring || [], false],
+  ];
+  return definitions.flatMap(([icon, label, tasks, showAssignee]) =>
+    chunksForGroup(icon, label, tasks, showAssignee).map((message) => ({ json: { message } })),
+  );
+}
+const labels = {
+  TODAY: ["📅", "Zadania na dziś", "✅ Nie masz zadań na dziś."],
+  TOMORROW: ["🌅", "Zadania na jutro", "✅ Nie masz zadań na jutro."],
+  OVERDUE: ["⚠️", "Zaległe zadania", "✅ Nie masz zaległych zadań."],
+};
+const [icon, label, empty] = labels[body.view] || ["📋", "Zadania", "Brak zadań."];
+const tasks = body.tasks || [];
+if (!tasks.length) return [{ json: { message: empty } }];
+return chunksForGroup(icon, label, tasks, false).map((message) => ({ json: { message } }));`,
+    },
+  },
+  output: [{ message: "🌅 <b>Zadania na jutro (1)</b>\n1. Oddzwonić · 31.08 15:00" }],
+});
+
 const summaryReply = node({
   type: "n8n-nodes-base.telegram",
   version: 1.2,
@@ -466,8 +607,8 @@ const summaryReply = node({
       resource: "message",
       operation: "sendMessage",
       chatId: expr('{{ $("Rozpoznaj rodzaj polecenia").item.json.chatId }}'),
-      text: expr('{{ ($json.body.tasks?.length ? (($json.body.view === "OVERDUE" ? "⚠️ Zaległe zadania" : "📅 Zadania na dziś") + "\n\n" + $json.body.tasks.map((task, index) => (index + 1) + ". " + task.title + (task.dueAt ? " — " + DateTime.fromISO(task.dueAt).setZone("Europe/Warsaw").toFormat("dd.MM HH:mm") : "")).join("\n")) : ($json.body.view === "OVERDUE" ? "✅ Nie masz zaległych zadań." : "✅ Nie masz zadań na dziś.")) }}'),
-      additionalFields: { appendAttribution: false, disable_web_page_preview: true },
+      text: expr("{{ $json.message }}"),
+      additionalFields: { appendAttribution: false, disable_web_page_preview: true, parse_mode: "HTML" },
     },
     credentials: { telegramApi: newCredential("Tasker Telegram Bot") },
   },
@@ -563,7 +704,9 @@ const helpReply = node({
       text:
         "Tasker przez Telegram\n\n" +
         "/dzisiaj — zadania na dziś\n" +
+        "/jutro — zadania z terminem na jutro\n" +
         "/zalegle — zadania po terminie\n" +
+        "/zadania — Bieżące, Oczekujące, Delegowane i Cykliczne\n" +
         "/dodaj — ta instrukcja i przykład\n" +
         "/pomoc — wszystkie możliwości\n\n" +
         "Nowe zadanie możesz wpisać lub nagrać naturalnie, np.: Dodaj dla Michała zadanie oddzwonić jutro o 15:00.\n\n" +
@@ -576,17 +719,24 @@ const helpReply = node({
   output: [{ ok: true, result: { message_id: 16 } }],
 });
 
+const summaryFlow = formatSummary.to(summaryReply);
+const commandFlow = normalizeUpdate.to(
+  routeCommand
+    .onCase(0, linkAccount.to(linkReply))
+    .onCase(1, acknowledgeConfirm.to(confirmDraft).to(confirmReply))
+    .onCase(2, acknowledgeCancel.to(cancelDraft).to(cancelReply))
+    .onCase(
+      3,
+      assignableUsers.to(taskAgent).to(createDraft).to(isSummary.onTrue(summaryFlow).onFalse(draftReady.onTrue(draftPreview).onFalse(draftProblem))),
+    )
+    .onCase(4, helpReply)
+    .onCase(5, directListRequest.to(summaryFlow)),
+);
+
 export default workflow("tasker-telegram-ai", "Tasker — Telegram + AI")
   .add(telegramTrigger)
-  .to(normalizeUpdate)
   .to(
-    routeCommand
-      .onCase(0, linkAccount.to(linkReply))
-      .onCase(1, acknowledgeConfirm.to(confirmDraft).to(confirmReply))
-      .onCase(2, acknowledgeCancel.to(cancelDraft).to(cancelReply))
-      .onCase(
-        3,
-        assignableUsers.to(taskAgent).to(createDraft).to(isSummary.onTrue(summaryReply).onFalse(draftReady.onTrue(draftPreview).onFalse(draftProblem))),
-      )
-      .onCase(4, helpReply),
+    isVoiceMessage
+      .onTrue(downloadVoiceMessage.to(transcribeVoiceMessage).to(commandFlow))
+      .onFalse(commandFlow),
   );

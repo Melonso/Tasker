@@ -18,7 +18,7 @@ Sekret ma co najmniej 32 znaki, jest przechowywany wyłącznie w chronionych zmi
 GET /api/integrations/health
 ```
 
-Zwraca wersję kontraktu i listę dostępnych możliwości.
+Zwraca wersję kontraktu i listę dostępnych możliwości. Kontrakt `2` dodaje listę na jutro oraz zestawienie aktywnych kategorii.
 
 ## Połączenie Telegrama
 
@@ -73,7 +73,17 @@ Ten sam endpoint obsługuje także bezpieczne operacje na istniejących zadaniac
 
 Jeżeli dwa tytuły są podobnie prawdopodobne, Tasker nie wykonuje operacji na chybił-trafił. Zwraca `NEEDS_CLARIFICATION` z najbliższymi tytułami i prosi o bardziej charakterystyczny fragment. Zakończenie albo przesunięcie rozpoznanego zadania nadal wymaga ręcznego zatwierdzenia.
 
-Listy `LIST_TODAY` i `LIST_OVERDUE` zwracają od razu `kind: SUMMARY` i maksymalnie 20 zadań. Utworzenie, zakończenie i przesunięcie zwracają `kind: DRAFT`.
+Listy `LIST_TODAY`, `LIST_TOMORROW` i `LIST_OVERDUE` zwracają od razu `kind: SUMMARY` i maksymalnie 20 zadań:
+
+```json
+{ "telegramUserId": "123456789", "sourceEventId": "telegram-update-98768", "intent": "LIST_TOMORROW" }
+```
+
+`LIST_ALL` zwraca aktywne zadania w grupach `current`, `waiting`, `delegated` i `recurring`, zgodnie z uprawnieniami oraz widokami panelu. Jedno zadanie może wystąpić w kilku grupach, tak samo jak w aplikacji. Workflow dzieli długie zestawienie na osobne wiadomości kategorii, aby nie przekroczyć limitu 4096 znaków Telegrama. Utworzenie, zakończenie i przesunięcie zwracają `kind: DRAFT`.
+
+## Wiadomości głosowe
+
+Workflow rozpoznaje pole `message.voice.file_id`, pobiera plik z Telegrama i przekazuje jego binarną zawartość do węzła OpenAI `Transcribe a recording` z językiem polskim. Wynik transkrypcji trafia następnie do dokładnie tej samej ścieżki interpretacji, walidacji i szkicu co wiadomość tekstowa. Tasker nie zapisuje oryginalnego nagrania ani transkrypcji w swojej bazie; techniczna retencja danych wykonania po stronie n8n podlega konfiguracji instancji n8n.
 
 ## Potwierdzenie szkicu
 
@@ -115,8 +125,23 @@ Anulowanie jest idempotentne i nie tworzy zadania. Potwierdzonego lub aktualnie 
 Workflow mapuje komendy bez udziału modelu AI:
 
 - `/dzisiaj` — lista zadań na dziś,
+- `/jutro` — lista zadań z terminem na jutro,
 - `/zalegle` — lista zadań po terminie,
+- `/zadania` — pełne zestawienie Bieżących, Oczekujących, Delegowanych i Cyklicznych; długie kategorie są dzielone na kolejne wiadomości,
 - `/dodaj` — instrukcja dodawania zadania tekstem lub głosem,
 - `/pomoc` — pełna skrócona instrukcja i odnośnik do ustawień.
+
+Telegram w zwykłym trybie HTML nie obsługuje znacznika `<table>`. Workflow używa więc HTML do nagłówków i klikalnych tytułów, ale dane prezentuje w mobilnych sekcjach kategorii zamiast w szerokiej tabeli. To zachowuje czytelność na telefonie i mieści się w limicie wiadomości.
+
+Wpis dla BotFathera (`/setcommands`):
+
+```text
+dzisiaj - Zadania na dziś
+jutro - Zadania z terminem na jutro
+zalegle - Zadania po terminie
+zadania - Wszystkie aktywne kategorie
+dodaj - Jak dodać zadanie tekstem lub głosem
+pomoc - Instrukcja i możliwości bota
+```
 
 Listę widoczną pod przyciskiem „Menu” ustawia właściciel bota przez `setMyCommands` albo `/setcommands` w BotFatherze. Polecenia nie zawierają polskich znaków, zgodnie z ograniczeniami Telegram Bot API.

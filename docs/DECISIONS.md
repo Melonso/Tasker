@@ -37,6 +37,8 @@ Data bazowa ustaleń: 2026-08-28. Strefa czasowa pierwszego wdrożenia: `Europe/
 31. Formularz tworzenia eksponuje tytuł, wykonawcę, termin i priorytet. Opis, widoczność, udostępnianie oraz cykliczność są opcjami rozwijanymi na żądanie.
 32. Polecenia Telegrama kończące lub przesuwające zadanie nie wymagają dokładnego tytułu. Tasker dopasowuje charakterystyczny fragment wyłącznie do aktywnych zadań, których użytkownik jest autorem lub wykonawcą, i wymaga doprecyzowania przy niejednoznacznym wyniku.
 33. Podsumowanie liczby zadań na ekranie „Dzisiaj” jest zawsze rozwinięte i nie posiada sterowania do zwijania, zarówno na komputerze, jak i na urządzeniu mobilnym.
+34. Bot Telegram posiada deterministyczne skróty `/jutro` i `/zadania` obok `/dzisiaj` i `/zalegle`. Pełne zestawienie jest dzielone na mobilne sekcje kategorii zamiast szerokiej tabeli HTML, której zwykły tryb wiadomości Telegrama nie obsługuje.
+35. Wiadomości głosowe Telegrama są pobierane przez n8n, transkrybowane jako polska mowa przez OpenAI i dalej obsługiwane tą samą ścieżką szkicu co polecenia tekstowe. Tasker nie przechowuje oryginalnego nagrania ani transkrypcji.
 
 ## Użytkownicy pilotażowi i role
 

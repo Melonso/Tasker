@@ -8,7 +8,7 @@
 - **Etap 3 – gotowy.** Harmonogram przypomnień, eskalacje, centrum powiadomień, trwały worker, deduplikacja i diagnostyka działają produkcyjnie.
 - **Etap 4 – gotowy.** PWA, wielourządzeniowy Web Push i test z ustawień zostały wdrożone i sprawdzone.
 - **Etap 5 – podstawowy obieg gotowy.** OAuth, primary calendar, tworzenie, aktualizacja, zakończenie i odłączenie działają; wybór innego kalendarza pozostaje do wykonania.
-- **Etapy 6–7 – gotowe dla MVP.** Telegram przyjmuje tekst i głos, tworzy bezpieczne szkice, kończy i przesuwa zadania, inteligentnie dopasowuje zapamiętany fragment aktywnego tytułu, pokazuje listy na dziś i zaległe oraz wysyła alerty zgodnie z preferencjami.
+- **Etapy 6–7 – gotowe dla MVP.** Telegram przyjmuje tekst i głos transkrybowany przez OpenAI, tworzy bezpieczne szkice, kończy i przesuwa zadania, inteligentnie dopasowuje zapamiętany fragment aktywnego tytułu, pokazuje listy na dziś, jutro, po terminie i według kategorii oraz wysyła alerty zgodnie z preferencjami.
 - **Etap 8 – pilotaż aktywny.** Działają lokalne automatyczne backupy, szyfrowana kopia w Google Drive przez n8n, sprawdzona pełna próba odtworzenia offsite, automatyczna retencja 14 zestawów dziennych + 8 tygodniowych, zewnętrzny monitoring i metryki pilotażu uruchomionego 2026-08-29 dla czterech użytkowników.
 - **Etap 9 – pierwsza iteracja UX wdrożona.** Audyt znajduje się w `docs/UX_RESEARCH_2026-08-29.md`. Zrealizowano zadaniowy ekran „Dzisiaj”, osobiste przypinanie do planu, stale widoczne statystyki pod listą, skanowalną listę, uproszczone dodawanie, szybkie przesuwanie terminu i mobilną nawigację z centralnym `+`.
 
@@ -144,6 +144,7 @@ Zakres:
 - bot i bezpieczne połączenie konta jednorazowym kodem,
 - polecenia tekstowe do tworzenia, delegowania, przesuwania i kończenia,
 - bezpieczne dopasowanie częściowego tytułu do aktywnych zadań autora lub wykonawcy, z doprecyzowaniem przy podobnych wynikach,
+- deterministyczne skróty `/dzisiaj`, `/jutro`, `/zalegle` i `/zadania`, które omijają model językowy,
 - podgląd przed zapisem z przyciskami Zapisz/Popraw/Anuluj,
 - alerty Telegram zgodne z preferencjami,
 - ograniczanie liczby żądań i ochrona webhooka.
@@ -155,7 +156,7 @@ Warunek zakończenia: użytkownik może przeprowadzić pełny obieg zadania bez 
 Zakres:
 
 - pobieranie nagrania tylko od połączonego użytkownika,
-- transkrypcja przez wymiennego dostawcę,
+- transkrypcja polskiej mowy przez węzeł OpenAI w n8n,
 - ekstrakcja struktury zadania,
 - obsługa niejednoznaczności i błędów,
 - krótka retencja lub natychmiastowe usuwanie nagrań,

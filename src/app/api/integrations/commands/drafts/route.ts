@@ -5,6 +5,7 @@ import {
   createTaskActionDraft,
   createTaskDraft,
   draftResponse,
+  telegramTaskOverview,
   telegramTaskSummary,
 } from "@/integrations/drafts";
 import { authorizeIntegrationRequest } from "@/integrations/service-auth";
@@ -35,7 +36,7 @@ const requestSchema = z.discriminatedUnion("intent", [z.object({
   dueTime: time.optional(),
 }), z.object({
   ...common,
-  intent: z.enum(["LIST_TODAY", "LIST_OVERDUE"]),
+  intent: z.enum(["LIST_TODAY", "LIST_TOMORROW", "LIST_OVERDUE", "LIST_ALL"]),
 })]);
 
 export async function POST(request: Request) {
@@ -50,8 +51,23 @@ export async function POST(request: Request) {
   if (!user) return NextResponse.json({ error: "TELEGRAM_ACCOUNT_NOT_LINKED" }, { status: 404 });
 
   try {
-    if (parsed.data.intent === "LIST_TODAY" || parsed.data.intent === "LIST_OVERDUE") {
-      const view = parsed.data.intent === "LIST_TODAY" ? "TODAY" : "OVERDUE";
+    if (parsed.data.intent === "LIST_ALL") {
+      const groups = await telegramTaskOverview(user);
+      return NextResponse.json({
+        kind: "SUMMARY",
+        view: "ALL",
+        groups: Object.fromEntries(Object.entries(groups).map(([key, taskRows]) => [
+          key,
+          taskRows.map((task) => ({ ...task, dueAt: task.dueAt?.toISOString() ?? null })),
+        ])),
+      });
+    }
+    if (["LIST_TODAY", "LIST_TOMORROW", "LIST_OVERDUE"].includes(parsed.data.intent)) {
+      const view = parsed.data.intent === "LIST_TODAY"
+        ? "TODAY"
+        : parsed.data.intent === "LIST_TOMORROW"
+          ? "TOMORROW"
+          : "OVERDUE";
       const taskRows = await telegramTaskSummary(user, view);
       return NextResponse.json({
         kind: "SUMMARY",
