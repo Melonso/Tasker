@@ -242,7 +242,7 @@ const confirmReply = node({
       operation: "sendMessage",
       chatId: expr('{{ $("Rozpoznaj rodzaj polecenia").item.json.chatId }}'),
       text: expr(
-        '{{ $json.statusCode >= 200 && $json.statusCode < 300 ? ($json.body?.preview?.intent === "COMPLETE_TASK" ? "✅ Zadanie zostało oznaczone jako zrobione." : ($json.body?.preview?.intent === "RESCHEDULE_TASK" ? "✅ Termin zadania został przesunięty." : "✅ Zadanie zostało utworzone w Taskerze.")) : "❌ Nie udało się wykonać polecenia: " + ($json.body?.error ?? "nieznany błąd") }}',
+        '{{ $json.statusCode >= 200 && $json.statusCode < 300 ? ($json.body?.preview?.intent === "COMPLETE_TASK" ? "✅ Zadanie zostało oznaczone jako zrobione." : ($json.body?.preview?.intent === "RESCHEDULE_TASK" ? "✅ Termin zadania został przesunięty." : ($json.body?.preview?.intent === "SHARE_TASK" ? "✅ Zadanie zostało udostępnione." : ($json.body?.preview?.intent === "REASSIGN_TASK" ? "✅ Zadanie zostało przekazane nowemu wykonawcy." : "✅ Zadanie zostało utworzone w Taskerze.")))) : "❌ Nie udało się wykonać polecenia: " + ($json.body?.message ?? $json.body?.error ?? "nieznany błąd") }}',
       ),
       additionalFields: { appendAttribution: false, disable_web_page_preview: true },
     },
@@ -360,7 +360,7 @@ const taskParser = outputParser({
           "priority",
         ],
         properties: {
-          intent: { type: "string", enum: ["CREATE_TASK", "COMPLETE_TASK", "RESCHEDULE_TASK", "LIST_TODAY", "LIST_TOMORROW", "LIST_OVERDUE", "LIST_ALL"] },
+          intent: { type: "string", enum: ["CREATE_TASK", "COMPLETE_TASK", "RESCHEDULE_TASK", "SHARE_TASK", "REASSIGN_TASK", "LIST_TODAY", "LIST_TOMORROW", "LIST_OVERDUE", "LIST_ALL"] },
           title: { type: "string", maxLength: 300 },
           taskQuery: { type: "string", maxLength: 300 },
           description: { type: "string", maxLength: 5000 },
@@ -433,8 +433,9 @@ const taskAgent = node({
         systemMessage: expr(
           "Jesteś precyzyjnym asystentem Taskera. Rozpoznajesz polecenia dotyczące zadań. " +
           "Nigdy nie tworzysz zadania samodzielnie i niczego nie dopowiadasz poza strukturą. " +
-          "Użyj CREATE_TASK dla nowego zadania, COMPLETE_TASK dla oznaczenia istniejącego jako zrobione, RESCHEDULE_TASK dla zmiany terminu, LIST_TODAY dla listy na dziś, LIST_TOMORROW dla listy na jutro, LIST_OVERDUE dla zaległych i LIST_ALL dla zestawienia wszystkich aktywnych kategorii. " +
-          "Dla COMPLETE_TASK i RESCHEDULE_TASK użytkownik nie musi znać dokładnego tytułu. Wpisz w taskQuery charakterystyczne słowa z jego polecenia, pomijając zwroty sterujące takie jak 'oznacz jako zakończone' lub 'przesuń termin'; title pozostaw pusty. Tasker pobierze aktywne zadania autora i wykonawcy oraz dopasuje tytuł tolerując odmiany, interpunkcję, domeny i drobne literówki. Dla list oba pola pozostaw puste. " +
+          "Użyj CREATE_TASK dla nowego zadania, COMPLETE_TASK dla oznaczenia istniejącego jako zrobione, RESCHEDULE_TASK dla zmiany terminu, SHARE_TASK dla dodania osobie dostępu bez zmiany wykonawcy, REASSIGN_TASK dla przekazania zadania nowemu wykonawcy, LIST_TODAY dla listy na dziś, LIST_TOMORROW dla listy na jutro, LIST_OVERDUE dla zaległych i LIST_ALL dla zestawienia wszystkich aktywnych kategorii. " +
+          "Zwroty 'dodaj Michała do zadania', 'udostępnij zadanie Michałowi' oznaczają SHARE_TASK. Zwroty 'przekaż zadanie Michałowi', 'przypisz zadanie Michałowi' albo 'zmień wykonawcę na Michała' oznaczają REASSIGN_TASK. " +
+          "Dla COMPLETE_TASK, RESCHEDULE_TASK, SHARE_TASK i REASSIGN_TASK użytkownik nie musi znać dokładnego tytułu. Wpisz w taskQuery charakterystyczne słowa z jego polecenia, pomijając zwroty sterujące; title pozostaw pusty. Dla SHARE_TASK i REASSIGN_TASK wpisz pełną nazwę rozpoznanej osoby z listy w assignee. Tasker pobierze dozwolone aktywne zadania i dopasuje tytuł tolerując odmiany, interpunkcję, domeny i drobne literówki. Dla list oba pola pozostaw puste. " +
           "Dla CREATE_TASK wpisz tytuł w title, a taskQuery pozostaw pusty. " +
           "Rozpoznawaj daty względne według podanej daty w strefie Europe/Warsaw. " +
           'Autorem polecenia jest {{ $json.body.author.name }}. Dostępni wykonawcy: {{ $json.body.users.map((user) => user.name).join(", ") }}. ' +
@@ -455,6 +456,7 @@ const taskAgent = node({
       output: {
         intent: "CREATE_TASK",
         title: "Oddzwonić",
+        taskQuery: "",
         description: "",
         assignee: "Michał Murawski",
         dueDate: "2026-08-29",
@@ -480,7 +482,7 @@ const createDraft = node({
       contentType: "json",
       specifyBody: "json",
       jsonBody: expr(
-        '{{ { telegramUserId: $("Rozpoznaj rodzaj polecenia").item.json.telegramUserId, sourceEventId: $("Rozpoznaj rodzaj polecenia").item.json.sourceEventId, sourceText: $("Rozpoznaj rodzaj polecenia").item.json.text, intent: $json.output.intent, ...($json.output.intent === "CREATE_TASK" ? { title: $json.output.title, description: $json.output.description, assignee: $json.output.assignee, visibility: $json.output.visibility, priority: $json.output.priority } : {}), ...(["COMPLETE_TASK", "RESCHEDULE_TASK"].includes($json.output.intent) ? { taskQuery: $json.output.taskQuery } : {}), ...($json.output.dueDate ? { dueDate: $json.output.dueDate } : {}), ...($json.output.dueDate && $json.output.dueTime ? { dueTime: $json.output.dueTime } : {}) } }}',
+        '{{ { telegramUserId: $("Rozpoznaj rodzaj polecenia").item.json.telegramUserId, sourceEventId: $("Rozpoznaj rodzaj polecenia").item.json.sourceEventId, sourceText: $("Rozpoznaj rodzaj polecenia").item.json.text, intent: $json.output.intent, ...($json.output.intent === "CREATE_TASK" ? { title: $json.output.title, description: $json.output.description, assignee: $json.output.assignee, visibility: $json.output.visibility, priority: $json.output.priority } : {}), ...(["COMPLETE_TASK", "RESCHEDULE_TASK", "SHARE_TASK", "REASSIGN_TASK"].includes($json.output.intent) ? { taskQuery: $json.output.taskQuery } : {}), ...(["SHARE_TASK", "REASSIGN_TASK"].includes($json.output.intent) ? { assignee: $json.output.assignee } : {}), ...($json.output.dueDate ? { dueDate: $json.output.dueDate } : {}), ...($json.output.dueDate && $json.output.dueTime ? { dueTime: $json.output.dueTime } : {}) } }}',
       ),
       options: { response: { response: { fullResponse: true, neverError: true, responseFormat: "json" } } },
     },
@@ -653,7 +655,7 @@ const draftPreview = node({
       operation: "sendMessage",
       chatId: expr('{{ $("Rozpoznaj rodzaj polecenia").item.json.chatId }}'),
       text: expr(
-        '{{ $json.body.preview.intent === "COMPLETE_TASK" ? "✅ Oznaczyć jako zrobione?\n\nZadanie: " + $json.body.preview.title + "\n\nTa operacja wymaga ręcznego zatwierdzenia." : ($json.body.preview.intent === "RESCHEDULE_TASK" ? "📅 Przesunąć termin?\n\nZadanie: " + $json.body.preview.title + "\nNowy termin: " + DateTime.fromISO($json.body.preview.dueAt).setZone("Europe/Warsaw").toFormat("dd.MM.yyyy HH:mm") + "\n\nTa operacja wymaga ręcznego zatwierdzenia." : "📝 Szkic zadania\n\nTytuł: " + $json.body.preview.title + "\nWykonawca: " + ($json.body.preview.assignee ?? "autor") + "\nTermin: " + ($json.body.preview.dueAt ? DateTime.fromISO($json.body.preview.dueAt).setZone("Europe/Warsaw").toFormat("dd.MM.yyyy HH:mm") : "bez terminu") + "\nPriorytet: " + $json.body.preview.priority + "\nWidoczność: " + $json.body.preview.visibility + "\n\nZatwierdzić? Jeśli nic nie wybierzesz, zadanie zostanie utworzone automatycznie za 10 minut.") }}',
+        '{{ $json.body.preview.intent === "COMPLETE_TASK" ? "✅ Oznaczyć jako zrobione?\n\nZadanie: " + $json.body.preview.title + "\n\nTa operacja wymaga ręcznego zatwierdzenia." : ($json.body.preview.intent === "RESCHEDULE_TASK" ? "📅 Przesunąć termin?\n\nZadanie: " + $json.body.preview.title + "\nNowy termin: " + DateTime.fromISO($json.body.preview.dueAt).setZone("Europe/Warsaw").toFormat("dd.MM.yyyy HH:mm") + "\n\nTa operacja wymaga ręcznego zatwierdzenia." : ($json.body.preview.intent === "SHARE_TASK" ? "👥 Udostępnić zadanie?\n\nZadanie: " + $json.body.preview.title + "\nDostęp otrzyma: " + $json.body.preview.targetUser + "\nWykonawca pozostanie bez zmian.\n\nTa operacja wymaga ręcznego zatwierdzenia." : ($json.body.preview.intent === "REASSIGN_TASK" ? "🔁 Przekazać zadanie?\n\nZadanie: " + $json.body.preview.title + "\nNowy wykonawca: " + $json.body.preview.targetUser + "\n\nTa operacja wymaga ręcznego zatwierdzenia." : "📝 Szkic zadania\n\nTytuł: " + $json.body.preview.title + "\nWykonawca: " + ($json.body.preview.assignee ?? "autor") + "\nTermin: " + ($json.body.preview.dueAt ? DateTime.fromISO($json.body.preview.dueAt).setZone("Europe/Warsaw").toFormat("dd.MM.yyyy HH:mm") : "bez terminu") + "\nPriorytet: " + $json.body.preview.priority + "\nWidoczność: " + $json.body.preview.visibility + "\n\nZatwierdzić? Jeśli nic nie wybierzesz, zadanie zostanie utworzone automatycznie za 10 minut.")))) }}',
       ),
       replyMarkup: "inlineKeyboard",
       inlineKeyboard: {
@@ -718,7 +720,7 @@ const helpReply = node({
         "/dodaj — ta instrukcja i przykład\n" +
         "/pomoc — wszystkie możliwości\n\n" +
         "Nowe zadanie możesz wpisać lub nagrać naturalnie, np.: Dodaj dla Michała zadanie oddzwonić jutro o 15:00.\n\n" +
-        "Możesz też napisać: oznacz oddzwonić jako zrobione albo przełóż raport na poniedziałek 9:00. Operacje zmieniające zadania potwierdzasz przyciskiem.\n\n" +
+        "Możesz też napisać: oznacz oddzwonić jako zrobione, przełóż raport na poniedziałek 9:00, dodaj Michała do zadania z Polcardem albo przekaż raport Michałowi. Operacje zmieniające zadania potwierdzasz przyciskiem.\n\n" +
         "Ustawienia: https://tasker.dpkomis.pl/settings",
       additionalFields: { appendAttribution: false, disable_web_page_preview: true },
     },

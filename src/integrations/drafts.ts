@@ -7,6 +7,7 @@ import {
   type CreateTaskDraftPayload,
   type TaskActionDraftPayload,
   taskCommandDrafts,
+  taskShares,
   tasks,
 } from "@/db/schema";
 import { dateTimePartsInZone, zonedDateTimeToUtc } from "@/domain/reminders";
@@ -28,16 +29,50 @@ export interface CreateTaskDraftInput {
   priority: "LOW" | "NORMAL" | "HIGH" | "URGENT";
 }
 
-export interface CreateTaskActionDraftInput {
+interface TaskActionDraftBaseInput {
   sourceEventId: string;
-  intent: "COMPLETE_TASK" | "RESCHEDULE_TASK";
   taskQuery: string;
+}
+
+export type CreateTaskActionDraftInput = TaskActionDraftBaseInput & ({
+  intent: "COMPLETE_TASK" | "RESCHEDULE_TASK";
   dueDate?: string;
   dueTime?: string;
+} | {
+  intent: "SHARE_TASK" | "REASSIGN_TASK";
+  assignee: string;
+});
+
+interface AssignablePerson {
+  id: string;
+  firstName: string;
+  lastName: string;
+  email: string;
 }
 
 function normalizePerson(value: string) {
   return value.trim().toLocaleLowerCase("pl-PL").replace(/\s+/g, " ");
+}
+
+export function matchAssignablePerson(people: AssignablePerson[], requestedPerson: string) {
+  const query = normalizePerson(requestedPerson);
+  const exactMatches = people.filter((person) => {
+    const fullName = normalizePerson(`${person.firstName} ${person.lastName}`);
+    return fullName === query || normalizePerson(person.email) === query;
+  });
+  const firstNameMatches = people.filter(
+    (person) => normalizePerson(person.firstName) === query,
+  );
+  const matches = exactMatches.length ? exactMatches : firstNameMatches;
+  return {
+    person: matches.length === 1 ? matches[0] : null,
+    matchCount: matches.length,
+    clarification: matches.length > 1
+      ? `Niejednoznaczna osoba „${requestedPerson}”. Podaj imię i nazwisko.`
+      : matches.length === 0
+        ? `Nie znaleziono osoby „${requestedPerson}”.`
+        : null,
+  };
 }
 
 export function commandAssignsAuthor(sourceText: string | undefined) {
@@ -53,19 +88,14 @@ export function taskDraftExpiresAt(now = new Date()) {
 export async function createTaskDraft(user: AuthenticatedUser, input: CreateTaskDraftInput) {
   const assignees = await listAssignableUsers(user);
   const requestedAssignee = commandAssignsAuthor(input.sourceText) ? "" : input.assignee;
-  const query = normalizePerson(requestedAssignee || `${user.firstName} ${user.lastName}`);
-  const exactMatches = assignees.filter((person) => {
-    const fullName = normalizePerson(`${person.firstName} ${person.lastName}`);
-    return fullName === query || normalizePerson(person.email) === query;
-  });
-  const firstNameMatches = assignees.filter(
-    (person) => normalizePerson(person.firstName) === query,
+  const assigneeResolution = matchAssignablePerson(
+    assignees,
+    requestedAssignee || `${user.firstName} ${user.lastName}`,
   );
-  const matches = exactMatches.length ? exactMatches : firstNameMatches;
-  const assignee = matches.length === 1 ? matches[0] : null;
+  const assignee = assigneeResolution.person;
   const clarification = assignee
     ? null
-    : matches.length > 1
+    : assigneeResolution.matchCount > 1
       ? `Niejednoznaczny wykonawca „${requestedAssignee}”. Podaj imię i nazwisko.`
       : `Nie znaleziono wykonawcy „${requestedAssignee || ""}”.`;
   const dueAt = input.dueDate ? dueAtFromInput(input.dueDate, input.dueTime, user) : null;
@@ -120,13 +150,16 @@ export async function createTaskDraft(user: AuthenticatedUser, input: CreateTask
 
 export async function createTaskActionDraft(user: AuthenticatedUser, input: CreateTaskActionDraftInput) {
   const { db } = getDatabaseClient();
+  const changesPeople = input.intent === "SHARE_TASK" || input.intent === "REASSIGN_TASK";
   const candidates = await db
-    .select({ id: tasks.id, title: tasks.title })
+    .select({ id: tasks.id, title: tasks.title, authorId: tasks.authorId, assigneeId: tasks.assigneeId })
     .from(tasks)
     .where(
       and(
         inArray(tasks.status, ["OPEN", "WAITING"]),
-        or(eq(tasks.authorId, user.id), eq(tasks.assigneeId, user.id)),
+        changesPeople
+          ? eq(tasks.authorId, user.id)
+          : or(eq(tasks.authorId, user.id), eq(tasks.assigneeId, user.id)),
       ),
     )
     .orderBy(asc(tasks.dueAt), asc(tasks.createdAt));
@@ -135,6 +168,10 @@ export async function createTaskActionDraft(user: AuthenticatedUser, input: Crea
   const dueAt = input.intent === "RESCHEDULE_TASK" && input.dueDate
     ? dueAtFromInput(input.dueDate, input.dueTime, user)
     : null;
+  const targetResolution = changesPeople
+    ? matchAssignablePerson(await listAssignableUsers(user), input.assignee)
+    : { person: null, matchCount: 0, clarification: null };
+  const targetUser = targetResolution.person;
   let clarification: string | null = null;
   if (!task) {
     const suggestions = resolution.ranked.map((match, index) => `${index + 1}. ${match.task.title}`).join("\n");
@@ -145,12 +182,27 @@ export async function createTaskActionDraft(user: AuthenticatedUser, input: Crea
         : `Nie znaleziono aktywnego zadania pasującego do „${input.taskQuery}”.`;
   } else if (input.intent === "RESCHEDULE_TASK" && !dueAt) {
     clarification = "Podaj nową datę zadania.";
+  } else if (changesPeople && targetResolution.clarification) {
+    clarification = targetResolution.clarification;
+  } else if (input.intent === "REASSIGN_TASK" && targetUser?.id === task.assigneeId) {
+    clarification = `${targetUser.firstName} ${targetUser.lastName} jest już wykonawcą tego zadania.`;
+  } else if (input.intent === "SHARE_TASK" && targetUser && (targetUser.id === task.authorId || targetUser.id === task.assigneeId)) {
+    clarification = `${targetUser.firstName} ${targetUser.lastName} ma już dostęp do tego zadania.`;
+  } else if (input.intent === "SHARE_TASK" && targetUser) {
+    const [existingShare] = await db
+      .select({ id: taskShares.id })
+      .from(taskShares)
+      .where(and(eq(taskShares.taskId, task.id), eq(taskShares.userId, targetUser.id)))
+      .limit(1);
+    if (existingShare) clarification = `${targetUser.firstName} ${targetUser.lastName} ma już dostęp do tego zadania.`;
   }
   const payload: TaskActionDraftPayload = {
     intent: input.intent,
     taskId: task?.id ?? null,
     taskTitle: task?.title ?? null,
     dueAt: dueAt?.toISOString() ?? null,
+    targetUserId: targetUser?.id ?? null,
+    targetUserName: targetUser ? `${targetUser.firstName} ${targetUser.lastName}` : null,
     clarification,
   };
   const status = clarification ? "NEEDS_CLARIFICATION" : "DRAFT";
@@ -252,6 +304,7 @@ export function draftResponse(draft: typeof taskCommandDrafts.$inferSelect) {
         intent: draft.payload.intent,
         title: draft.payload.taskTitle,
         dueAt: draft.payload.dueAt,
+        targetUser: draft.payload.targetUserName,
       },
       clarification: draft.payload.clarification,
       taskId: draft.taskId ?? draft.payload.taskId,

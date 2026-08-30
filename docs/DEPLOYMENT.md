@@ -156,6 +156,8 @@ Webhook Telegram musi posiadać sekret weryfikacyjny. Callback OAuth musi sprawd
 
 Produkcyjny workflow `Tasker — Telegram + AI` w n8n korzysta z chronionych credentials `Tasker Telegram Bot`, `Tasker OpenAI` oraz `Tasker API`. Dla wiadomości głosowej pobiera plik `.oga` jako dane binarne, transkrybuje polską mowę w węźle OpenAI i przekazuje wyłącznie wynik tekstowy do dalszej interpretacji. Tasker nie zapisuje nagrania ani transkrypcji w PostgreSQL. Retencję binarnych danych wykonań należy kontrolować po stronie n8n i utrzymywać możliwie krótką; logi aplikacji nie mogą zawierać treści nagrania ani transkrypcji.
 
+Kontrakt integracyjny `3` dodaje ręcznie zatwierdzane intencje `SHARE_TASK` i `REASSIGN_TASK`. Wdrożenie wymaga jednoczesnej aktualizacji aplikacji oraz aktywnego workflow n8n; workflow nie może zostać przełączony wcześniej niż API, ponieważ starszy kontrakt odrzuci nowe intencje. Przekazanie zadania przebudowuje przyszłe przypomnienia i jest odzwierciedlane w Google Calendar przez istniejący cykliczny worker synchronizacji.
+
 ## 8. Procedura pierwszego wdrożenia
 
 1. Wykonać odczytowy audyt SSH i zapisać bezpieczne wnioski bez sekretów.

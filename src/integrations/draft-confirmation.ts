@@ -12,7 +12,9 @@ import {
 import {
   completeTaskForUser,
   createTaskForUser,
+  reassignTaskForUser,
   rescheduleTaskForUser,
+  shareTaskWithUser,
   TaskInputError,
 } from "@/tasks/service";
 
@@ -46,9 +48,16 @@ export async function confirmClaimedTaskDraft(
     taskTitle = payload.taskTitle ?? "zadanie";
     if (payload.intent === "COMPLETE_TASK") {
       await completeTaskForUser(user, taskId);
-    } else {
+    } else if (payload.intent === "RESCHEDULE_TASK") {
       if (!payload.dueAt) throw new TaskInputError("Szkic nie ma nowego terminu.");
       await rescheduleTaskForUser(user, taskId, new Date(payload.dueAt));
+    } else {
+      if (!payload.targetUserId) throw new TaskInputError("Szkic nie ma rozpoznanej osoby.");
+      if (payload.intent === "SHARE_TASK") {
+        await shareTaskWithUser(user, taskId, payload.targetUserId);
+      } else {
+        await reassignTaskForUser(user, taskId, payload.targetUserId);
+      }
     }
   }
   const { db } = getDatabaseClient();

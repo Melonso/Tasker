@@ -36,6 +36,11 @@ const requestSchema = z.discriminatedUnion("intent", [z.object({
   dueTime: time.optional(),
 }), z.object({
   ...common,
+  intent: z.enum(["SHARE_TASK", "REASSIGN_TASK"]),
+  taskQuery: z.string().trim().min(1).max(300),
+  assignee: z.string().trim().min(1).max(320),
+}), z.object({
+  ...common,
   intent: z.enum(["LIST_TODAY", "LIST_TOMORROW", "LIST_OVERDUE", "LIST_ALL"]),
 })]);
 
@@ -77,7 +82,10 @@ export async function POST(request: Request) {
     }
     const draft = parsed.data.intent === "CREATE_TASK"
       ? await createTaskDraft(user, parsed.data)
-      : parsed.data.intent === "COMPLETE_TASK" || parsed.data.intent === "RESCHEDULE_TASK"
+      : parsed.data.intent === "COMPLETE_TASK"
+          || parsed.data.intent === "RESCHEDULE_TASK"
+          || parsed.data.intent === "SHARE_TASK"
+          || parsed.data.intent === "REASSIGN_TASK"
         ? await createTaskActionDraft(user, parsed.data)
         : null;
     if (!draft) return NextResponse.json({ error: "INVALID_INTENT" }, { status: 400 });

@@ -337,3 +337,140 @@ export async function rescheduleTaskForUser(user: AuthenticatedUser, taskId: str
   });
   return task.id;
 }
+
+export async function shareTaskWithUser(
+  user: AuthenticatedUser,
+  taskId: string,
+  targetUserId: string,
+) {
+  const { db } = getDatabaseClient();
+  const [[task], [targetUser]] = await Promise.all([
+    db.select().from(tasks).where(and(eq(tasks.id, taskId), inArray(tasks.status, ["OPEN", "WAITING"]))).limit(1),
+    db.select({ id: users.id, isActive: users.isActive }).from(users).where(eq(users.id, targetUserId)).limit(1),
+  ]);
+  if (!task || task.authorId !== user.id) {
+    throw new TaskInputError("Tylko autor może udostępnić to zadanie.");
+  }
+  if (user.roles.includes("EXTERNAL")) {
+    throw new TaskInputError("Użytkownik zewnętrzny nie może udostępniać zadań dalej.");
+  }
+  if (!targetUser?.isActive) throw new TaskInputError("Wybrana osoba nie jest aktywnym użytkownikiem.");
+  if (targetUser.id === task.authorId || targetUser.id === task.assigneeId) {
+    throw new TaskInputError("Wybrana osoba ma już dostęp do zadania.");
+  }
+
+  await db.transaction(async (tx) => {
+    const now = new Date();
+    await tx
+      .update(tasks)
+      .set({ visibility: "SHARED", updatedAt: now, version: task.version + 1 })
+      .where(eq(tasks.id, task.id));
+    await tx
+      .insert(taskShares)
+      .values({ taskId: task.id, userId: targetUser.id })
+      .onConflictDoNothing({ target: [taskShares.taskId, taskShares.userId] });
+    await tx.insert(auditEvents).values({
+      actorId: user.id,
+      taskId: task.id,
+      action: "TASK_SHARED_WITH_USER",
+      metadata: { targetUserId: targetUser.id, previousVisibility: task.visibility },
+    });
+  });
+  return task.id;
+}
+
+export async function reassignTaskForUser(
+  user: AuthenticatedUser,
+  taskId: string,
+  targetAssigneeId: string,
+) {
+  const { db } = getDatabaseClient();
+  const [[task], [targetAssignee], [recurrence], shares] = await Promise.all([
+    db.select().from(tasks).where(and(eq(tasks.id, taskId), inArray(tasks.status, ["OPEN", "WAITING"]))).limit(1),
+    db
+      .select({
+        id: users.id,
+        isActive: users.isActive,
+        timeZone: users.timeZone,
+        overdueReminderHour: users.overdueReminderHour,
+      })
+      .from(users)
+      .where(eq(users.id, targetAssigneeId))
+      .limit(1),
+    db.select().from(taskRecurrences).where(eq(taskRecurrences.taskId, taskId)).limit(1),
+    db.select({ userId: taskShares.userId, teamId: taskShares.teamId }).from(taskShares).where(eq(taskShares.taskId, taskId)),
+  ]);
+  if (!task || task.authorId !== user.id) {
+    throw new TaskInputError("Tylko autor może przekazać to zadanie.");
+  }
+  if (user.roles.includes("EXTERNAL")) {
+    throw new TaskInputError("Użytkownik zewnętrzny nie może przekazywać zadań innym osobom.");
+  }
+  if (!targetAssignee?.isActive) throw new TaskInputError("Wybrany wykonawca nie jest aktywnym użytkownikiem.");
+  if (targetAssignee.id === task.assigneeId) throw new TaskInputError("Wybrana osoba jest już wykonawcą zadania.");
+  const targetRoles = await rolesForUser(targetAssignee.id);
+  if (task.visibility === "COMPANY" && !isCompanyUser(targetRoles)) {
+    throw new TaskInputError("Zadanie firmowe można przekazać wyłącznie użytkownikowi firmowemu.");
+  }
+
+  const remainingShares = shares.filter((share) => share.userId !== targetAssignee.id);
+  const nextVisibility = task.visibility === "SHARED" && remainingShares.length === 0 ? "PRIVATE" : task.visibility;
+  await db.transaction(async (tx) => {
+    const now = new Date();
+    await tx
+      .update(tasks)
+      .set({
+        assigneeId: targetAssignee.id,
+        visibility: nextVisibility,
+        plannedForDate: null,
+        updatedAt: now,
+        version: task.version + 1,
+      })
+      .where(eq(tasks.id, task.id));
+    await tx
+      .delete(taskShares)
+      .where(and(eq(taskShares.taskId, task.id), eq(taskShares.userId, targetAssignee.id)));
+    await tx
+      .update(reminders)
+      .set({ status: "CANCELED", updatedAt: now })
+      .where(and(eq(reminders.taskId, task.id), eq(reminders.status, "SCHEDULED")));
+    if (task.dueAt) {
+      const schedule = buildReminderSchedule({
+        dueAt: task.dueAt,
+        now,
+        timeZone: targetAssignee.timeZone,
+        overdueReminderHour: targetAssignee.overdueReminderHour,
+      });
+      if (schedule.length) {
+        await tx
+          .insert(reminders)
+          .values(schedule.map((item) => ({ taskId: task.id, kind: item.kind, scheduledAt: item.scheduledAt })))
+          .onConflictDoUpdate({
+            target: [reminders.taskId, reminders.kind, reminders.scheduledAt],
+            set: { status: "SCHEDULED", attemptCount: 0, processedAt: null, lastError: null, updatedAt: now },
+          });
+      }
+    }
+    if (recurrence && task.dueAt) {
+      await tx
+        .update(taskRecurrences)
+        .set({
+          nextOccurrenceAt: nextRecurringDueAt(task.dueAt, recurrence.rule, targetAssignee.timeZone),
+          updatedAt: now,
+        })
+        .where(eq(taskRecurrences.taskId, task.id));
+    }
+    await tx.insert(auditEvents).values({
+      actorId: user.id,
+      taskId: task.id,
+      action: "TASK_REASSIGNED",
+      metadata: {
+        previousAssigneeId: task.assigneeId,
+        newAssigneeId: targetAssignee.id,
+        previousVisibility: task.visibility,
+        newVisibility: nextVisibility,
+      },
+    });
+  });
+  return task.id;
+}

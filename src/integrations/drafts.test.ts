@@ -2,6 +2,7 @@ import { describe, expect, it } from "vitest";
 
 import {
   commandAssignsAuthor,
+  matchAssignablePerson,
   TASK_DRAFT_DURATION_MS,
   taskDraftExpiresAt,
   telegramSummaryBounds,
@@ -23,6 +24,27 @@ describe("Telegram assignment language", () => {
   it("does not treat a named third-person performer as the author", () => {
     expect(commandAssignsAuthor("Przypomnij Pawłowi, żeby wysłał stronę")).toBe(false);
     expect(commandAssignsAuthor("Paweł ma wysłać stronę Michałowi")).toBe(false);
+  });
+});
+
+describe("Telegram person matching", () => {
+  const people = [
+    { id: "michal", firstName: "Michał", lastName: "Murawski", email: "michal@example.com" },
+    { id: "mateusz", firstName: "Mateusz", lastName: "Meloch", email: "mateusz@example.com" },
+  ];
+
+  it("matches a unique first name for sharing or reassignment", () => {
+    expect(matchAssignablePerson(people, "Michał").person?.id).toBe("michal");
+  });
+
+  it("matches a full name and email", () => {
+    expect(matchAssignablePerson(people, "Michał Murawski").person?.id).toBe("michal");
+    expect(matchAssignablePerson(people, "mateusz@example.com").person?.id).toBe("mateusz");
+  });
+
+  it("requires clarification when the person is unknown", () => {
+    expect(matchAssignablePerson(people, "Paweł").person).toBeNull();
+    expect(matchAssignablePerson(people, "Paweł").clarification).toContain("Nie znaleziono osoby");
   });
 });
 

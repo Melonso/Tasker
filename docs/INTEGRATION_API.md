@@ -18,7 +18,7 @@ Sekret ma co najmniej 32 znaki, jest przechowywany wyłącznie w chronionych zmi
 GET /api/integrations/health
 ```
 
-Zwraca wersję kontraktu i listę dostępnych możliwości. Kontrakt `2` dodaje listę na jutro oraz zestawienie aktywnych kategorii.
+Zwraca wersję kontraktu i listę dostępnych możliwości. Kontrakt `3` obejmuje listę na jutro, zestawienie aktywnych kategorii oraz szkice udostępniania i przekazywania zadań.
 
 ## Połączenie Telegrama
 
@@ -69,9 +69,21 @@ Ten sam endpoint obsługuje także bezpieczne operacje na istniejących zadaniac
 { "telegramUserId": "123456789", "sourceEventId": "telegram-update-98767", "intent": "RESCHEDULE_TASK", "taskQuery": "wysłać raport", "dueDate": "2026-09-01", "dueTime": "09:00" }
 ```
 
+Udostępnienie zachowuje obecnego wykonawcę i dodaje wskazanej osobie dostęp. Przekazanie zmienia jedynego głównego wykonawcę:
+
+```json
+{ "telegramUserId": "123456789", "sourceEventId": "telegram-update-98769", "intent": "SHARE_TASK", "taskQuery": "polcard", "assignee": "Michał Murawski" }
+```
+
+```json
+{ "telegramUserId": "123456789", "sourceEventId": "telegram-update-98770", "intent": "REASSIGN_TASK", "taskQuery": "polcard", "assignee": "Michał Murawski" }
+```
+
+Obie operacje może wykonać wyłącznie autor aktywnego zadania i obie zawsze wymagają ręcznego zatwierdzenia. `SHARE_TASK` ustawia widoczność `SHARED`, zachowuje wykonawcę i tworzy bezpośrednie udostępnienie. `REASSIGN_TASK` zmienia wykonawcę, czyści jego osobiste przypięcie do planu dnia, przebudowuje przypomnienia według strefy i preferencji nowego wykonawcy oraz pozwala workerowi Google Calendar usunąć stare i utworzyć nowe powiązanie przy kolejnym przebiegu synchronizacji.
+
 `taskQuery` nie musi być dokładnym tytułem. Tasker pobiera wszystkie aktywne zadania, których połączony użytkownik jest autorem lub wykonawcą, i ocenia podobieństwo do podanego fragmentu. Dopasowanie ignoruje wielkość liter, polskie znaki, interpunkcję oraz typowe elementy adresów internetowych, a także toleruje odmiany, prefiksy słów i drobne literówki. Przykładowo `wysłać stronę helpyou` dopasuje zadanie `Wysłać stronę www.helpyouprawo.pl panu Pawłowi`.
 
-Jeżeli dwa tytuły są podobnie prawdopodobne, Tasker nie wykonuje operacji na chybił-trafił. Zwraca `NEEDS_CLARIFICATION` z najbliższymi tytułami i prosi o bardziej charakterystyczny fragment. Zakończenie albo przesunięcie rozpoznanego zadania nadal wymaga ręcznego zatwierdzenia.
+Jeżeli dwa tytuły są podobnie prawdopodobne, Tasker nie wykonuje operacji na chybił-trafił. Zwraca `NEEDS_CLARIFICATION` z najbliższymi tytułami i prosi o bardziej charakterystyczny fragment. Zakończenie, przesunięcie, udostępnienie i przekazanie rozpoznanego zadania wymagają ręcznego zatwierdzenia.
 
 Listy `LIST_TODAY`, `LIST_TOMORROW` i `LIST_OVERDUE` zwracają od razu `kind: SUMMARY` i maksymalnie 20 zadań:
 
@@ -134,6 +146,8 @@ Workflow mapuje komendy bez udziału modelu AI:
 - `/pomoc` — pełna skrócona instrukcja i odnośnik do ustawień.
 
 Te same listy można wywołać naturalnym zdaniem tekstowym albo głosowym zawierającym prośbę o pokazanie zadań i zakres: dziś, jutro, zaległe albo wszystkie/kategorie.
+
+Udostępnianie i przekazywanie pozostają poleceniami naturalnymi, ponieważ zawsze wymagają nazwy osoby i fragmentu tytułu; osobna szybka komenda nie skróciłaby tego przepływu. Przykłady: `dodaj Michała do zadania z Polcardem` oraz `przekaż zadanie z Polcardem Michałowi`.
 
 Telegram w zwykłym trybie HTML nie obsługuje znacznika `<table>`. Workflow używa więc HTML do nagłówków i klikalnych tytułów, ale dane prezentuje w mobilnych sekcjach kategorii zamiast w szerokiej tabeli. To zachowuje czytelność na telefonie i mieści się w limicie wiadomości.
 

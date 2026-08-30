@@ -392,10 +392,12 @@ export interface CreateTaskDraftPayload {
 }
 
 export interface TaskActionDraftPayload {
-  intent: "COMPLETE_TASK" | "RESCHEDULE_TASK";
+  intent: "COMPLETE_TASK" | "RESCHEDULE_TASK" | "SHARE_TASK" | "REASSIGN_TASK";
   taskId: string | null;
   taskTitle: string | null;
   dueAt: string | null;
+  targetUserId: string | null;
+  targetUserName: string | null;
   clarification: string | null;
 }
 
