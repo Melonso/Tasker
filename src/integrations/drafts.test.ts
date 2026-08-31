@@ -3,6 +3,7 @@ import { describe, expect, it } from "vitest";
 import {
   commandAssignsAuthor,
   matchAssignablePerson,
+  resolveCreateTaskShare,
   TASK_DRAFT_DURATION_MS,
   taskDraftExpiresAt,
   telegramSummaryBounds,
@@ -45,6 +46,31 @@ describe("Telegram person matching", () => {
   it("requires clarification when the person is unknown", () => {
     expect(matchAssignablePerson(people, "Paweł").person).toBeNull();
     expect(matchAssignablePerson(people, "Paweł").clarification).toContain("Nie znaleziono osoby");
+  });
+});
+
+describe("Telegram create-and-share", () => {
+  const people = [
+    { id: "author", firstName: "Mateusz", lastName: "Meloch", email: "mateusz@example.com" },
+    { id: "michal", firstName: "Michał", lastName: "Murawski", email: "michal@example.com" },
+  ];
+
+  it("resolves a separate share recipient and forces SHARED visibility", () => {
+    const result = resolveCreateTaskShare(people, "Michał Murawski", "author", "author", "PRIVATE");
+    expect(result.person?.id).toBe("michal");
+    expect(result.visibility).toBe("SHARED");
+    expect(result.clarification).toBeNull();
+  });
+
+  it("does not produce a complete SHARED draft without a recipient", () => {
+    const result = resolveCreateTaskShare(people, "", "author", "author", "SHARED");
+    expect(result.person).toBeNull();
+    expect(result.clarification).toContain("Podaj osobę");
+  });
+
+  it("rejects sharing with the author or current assignee", () => {
+    expect(resolveCreateTaskShare(people, "Mateusz", "author", "author", "SHARED").clarification)
+      .toContain("ma już dostęp");
   });
 });
 

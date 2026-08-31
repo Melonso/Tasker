@@ -23,6 +23,7 @@ export interface CreateTaskDraftInput {
   title: string;
   description?: string;
   assignee?: string;
+  shareWith?: string;
   dueDate?: string;
   dueTime?: string;
   visibility: "PRIVATE" | "COMPANY" | "SHARED";
@@ -75,6 +76,37 @@ export function matchAssignablePerson(people: AssignablePerson[], requestedPerso
   };
 }
 
+export function resolveCreateTaskShare(
+  people: AssignablePerson[],
+  requestedPerson: string | undefined,
+  authorId: string,
+  assigneeId: string | null,
+  visibility: "PRIVATE" | "COMPANY" | "SHARED",
+) {
+  const shareWith = requestedPerson?.trim() ?? "";
+  const wantsSharing = visibility === "SHARED" || Boolean(shareWith);
+  if (!wantsSharing) return { person: null, visibility, clarification: null };
+  if (!shareWith) {
+    return {
+      person: null,
+      visibility: "SHARED" as const,
+      clarification: "Podaj osobę, której chcesz udostępnić zadanie.",
+    };
+  }
+  const resolution = matchAssignablePerson(people, shareWith);
+  if (resolution.clarification || !resolution.person) {
+    return { person: null, visibility: "SHARED" as const, clarification: resolution.clarification };
+  }
+  if (resolution.person.id === authorId || resolution.person.id === assigneeId) {
+    return {
+      person: null,
+      visibility: "SHARED" as const,
+      clarification: `${resolution.person.firstName} ${resolution.person.lastName} ma już dostęp do tego zadania.`,
+    };
+  }
+  return { person: resolution.person, visibility: "SHARED" as const, clarification: null };
+}
+
 export function commandAssignsAuthor(sourceText: string | undefined) {
   if (!sourceText) return false;
   const normalized = sourceText.toLocaleLowerCase("pl-PL").replace(/[,.!?;:()]/g, " ").replace(/\s+/g, " ");
@@ -93,11 +125,19 @@ export async function createTaskDraft(user: AuthenticatedUser, input: CreateTask
     requestedAssignee || `${user.firstName} ${user.lastName}`,
   );
   const assignee = assigneeResolution.person;
-  const clarification = assignee
+  const assigneeClarification = assignee
     ? null
     : assigneeResolution.matchCount > 1
       ? `Niejednoznaczny wykonawca „${requestedAssignee}”. Podaj imię i nazwisko.`
       : `Nie znaleziono wykonawcy „${requestedAssignee || ""}”.`;
+  const shareResolution = resolveCreateTaskShare(
+    assignees,
+    input.shareWith,
+    user.id,
+    assignee?.id ?? null,
+    input.visibility,
+  );
+  const clarification = assigneeClarification ?? shareResolution.clarification;
   const dueAt = input.dueDate ? dueAtFromInput(input.dueDate, input.dueTime, user) : null;
   const payload: CreateTaskDraftPayload = {
     intent: "CREATE_TASK",
@@ -105,8 +145,12 @@ export async function createTaskDraft(user: AuthenticatedUser, input: CreateTask
     description: input.description || null,
     assigneeId: assignee?.id ?? null,
     assigneeName: assignee ? `${assignee.firstName} ${assignee.lastName}` : null,
+    sharedUserId: shareResolution.person?.id ?? null,
+    sharedUserName: shareResolution.person
+      ? `${shareResolution.person.firstName} ${shareResolution.person.lastName}`
+      : null,
     dueAt: dueAt?.toISOString() ?? null,
-    visibility: input.visibility,
+    visibility: shareResolution.visibility,
     priority: input.priority,
     clarification,
   };
@@ -319,6 +363,7 @@ export function draftResponse(draft: typeof taskCommandDrafts.$inferSelect) {
       title: draft.payload.title,
       description: draft.payload.description,
       assignee: draft.payload.assigneeName,
+      shareWith: draft.payload.sharedUserName,
       dueAt: draft.payload.dueAt,
       visibility: draft.payload.visibility,
       priority: draft.payload.priority,

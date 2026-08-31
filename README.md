@@ -44,7 +44,7 @@ Wdrożona wersja produkcyjna działa pod `https://tasker.dpkomis.pl`. Zrealizowa
 - ustawienia profilu oraz godzin 14:00 i 9:00,
 - PWA i Web Push przetestowane na prawdziwej przeglądarce,
 - synchronizacja Google Calendar przez OAuth,
-- Telegram tekstowy i głosowy z transkrypcją OpenAI, dynamiczną listą wykonawców i bezpiecznym szkicem,
+- Telegram tekstowy i głosowy z transkrypcją OpenAI, dynamiczną listą wykonawców, atomowym tworzeniem i udostępnianiem zadania oraz bezpiecznym szkicem,
 - komendy Telegrama do kończenia, przesuwania, udostępniania, przekazywania wykonawcy oraz wyświetlania zadań na dziś, jutro, po terminie i według głównych kategorii, z inteligentnym dopasowaniem zapamiętanego fragmentu zamiast wymogu dokładnego tytułu,
 - automatyczne zatwierdzanie kompletnego szkicu po 10 minutach,
 - zadania cykliczne dzienne, tygodniowe i miesięczne z pauzowaniem,

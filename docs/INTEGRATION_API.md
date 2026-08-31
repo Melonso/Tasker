@@ -18,7 +18,7 @@ Sekret ma co najmniej 32 znaki, jest przechowywany wyłącznie w chronionych zmi
 GET /api/integrations/health
 ```
 
-Zwraca wersję kontraktu i listę dostępnych możliwości. Kontrakt `3` obejmuje listę na jutro, zestawienie aktywnych kategorii oraz szkice udostępniania i przekazywania zadań.
+Zwraca wersję kontraktu i listę dostępnych możliwości. Kontrakt `4` obejmuje listy zadań, szkice udostępniania i przekazywania oraz atomowe utworzenie nowego zadania z bezpośrednim udostępnieniem.
 
 ## Połączenie Telegrama
 
@@ -50,6 +50,7 @@ Content-Type: application/json
   "title": "Wysłać materiały do strony",
   "description": "Materiały do nowej wersji strony",
   "assignee": "Michał Murawski",
+  "shareWith": "Paweł Kurek",
   "dueDate": "2026-08-29",
   "dueTime": "15:00",
   "visibility": "COMPANY",
@@ -57,7 +58,9 @@ Content-Type: application/json
 }
 ```
 
-`sourceEventId` zapewnia idempotencję ponowionych aktualizacji Telegrama. Tasker sam rozpoznaje wykonawcę wśród osób dostępnych użytkownikowi. Brak lub niejednoznaczna osoba zwraca stan `NEEDS_CLARIFICATION`. Szkic wygasa po 30 minutach.
+`sourceEventId` zapewnia idempotencję ponowionych aktualizacji Telegrama. `assignee` oznacza wyłącznie głównego wykonawcę, natomiast opcjonalne `shareWith` oznacza osobę otrzymującą dostęp bez zmiany wykonawcy. Podanie `shareWith` wymusza widoczność `SHARED`; zatwierdzenie tworzy zadanie i wpis `task_shares` w jednej transakcji. Tasker sam rozpoznaje obie osoby wśród użytkowników dostępnych autorowi. Brak lub niejednoznaczna osoba zwraca stan `NEEDS_CLARIFICATION`. Szkic wygasa po 30 minutach.
+
+Szkic z `visibility: SHARED` bez `shareWith` nigdy nie otrzymuje stanu `DRAFT`: API prosi o wskazanie odbiorcy, dzięki czemu taki szkic nie może zostać zatwierdzony ręcznie ani automatycznie. Podgląd kompletnego szkicu pokazuje oddzielnie wykonawcę oraz osobę otrzymującą dostęp.
 
 Ten sam endpoint obsługuje także bezpieczne operacje na istniejących zadaniach:
 
@@ -148,6 +151,8 @@ Workflow mapuje komendy bez udziału modelu AI:
 Te same listy można wywołać naturalnym zdaniem tekstowym albo głosowym zawierającym prośbę o pokazanie zadań i zakres: dziś, jutro, zaległe albo wszystkie/kategorie.
 
 Udostępnianie i przekazywanie pozostają poleceniami naturalnymi, ponieważ zawsze wymagają nazwy osoby i fragmentu tytułu; osobna szybka komenda nie skróciłaby tego przepływu. Przykłady: `dodaj Michała do zadania z Polcardem` oraz `przekaż zadanie z Polcardem Michałowi`.
+
+Jedno polecenie może utworzyć i od razu udostępnić zadanie, np. `dodaj zadanie sprawdzić faktury za godzinę i udostępnij je Michałowi`. Model zwraca wtedy `CREATE_TASK`, autora jako wykonawcę oraz Michała w `shareWith`; nie próbuje wykonywać sekwencji dwóch niezależnych szkiców.
 
 Pusta albo bardzo krótka wiadomość (mniej niż 3 znaki, np. `?`) nie jest przekazywana do modelu z pamięcią rozmowy. Workflow pokazuje wtedy instrukcję, aby model nie powtarzał przypadkowo poprzedniej intencji.
 

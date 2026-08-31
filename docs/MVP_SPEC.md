@@ -135,6 +135,7 @@ Minimalne intencje MVP:
 - przesuń termin,
 - oznacz jako wykonane,
 - udostępnij istniejące zadanie wskazanej osobie bez zmiany wykonawcy,
+- utwórz zadanie i od razu udostępnij je wskazanej osobie bez zmiany wykonawcy,
 - przekaż istniejące zadanie nowemu wykonawcy,
 - pokaż zadania na dziś, jutro, przeterminowane albo pełne zestawienie aktywnych kategorii.
 
@@ -150,7 +151,7 @@ System przygotowuje podgląd:
 - delegujący: aktualny użytkownik,
 - widoczność: firmowa.
 
-Kompletny szkic nowego zadania można potwierdzić przyciskiem „Zapisz” lub odrzucić. Brak reakcji przez 10 minut powoduje automatyczne utworzenie wyłącznie nowego zadania i wysłanie potwierdzenia. Zakończenie, przesunięcie terminu, udostępnienie oraz przekazanie wykonawcy zawsze wymagają ręcznego zatwierdzenia. Niejednoznaczna osoba, data lub zadanie wymaga doprecyzowania i nigdy nie jest zatwierdzana automatycznie.
+Kompletny szkic nowego zadania można potwierdzić przyciskiem „Zapisz” lub odrzucić. Może on zawierać jednego wykonawcę i jednego bezpośredniego odbiorcę udostępnienia; obie role są pokazane oddzielnie. Brak reakcji przez 10 minut powoduje automatyczne utworzenie wyłącznie kompletnego nowego zadania i wysłanie potwierdzenia. Szkic `SHARED` bez odbiorcy pozostaje niekompletny. Zakończenie, przesunięcie terminu, udostępnienie istniejącego zadania oraz przekazanie wykonawcy zawsze wymagają ręcznego zatwierdzenia. Niejednoznaczna osoba, data lub zadanie wymaga doprecyzowania i nigdy nie jest zatwierdzana automatycznie.
 
 Transkrypcja mowy działa przez węzeł OpenAI w n8n, oddzielony od logiki biznesowej Taskera, dzięki czemu dostawcę można zmienić bez przebudowy obsługi zadań. Tasker nie zapisuje nagrania ani transkrypcji w swojej bazie. Plik binarny podlega retencji technicznej instancji n8n; docelową polityką pozostaje możliwie szybkie usuwanie danych wykonania po przetworzeniu.
 

@@ -144,6 +144,7 @@ Zakres:
 - bot i bezpieczne połączenie konta jednorazowym kodem,
 - polecenia tekstowe do tworzenia, delegowania, przesuwania i kończenia,
 - udostępnianie istniejącego zadania wskazanej osobie oraz przekazywanie go nowemu wykonawcy, zawsze z ręcznym potwierdzeniem,
+- atomowe tworzenie nowego zadania i bezpośrednie udostępnianie go wskazanej osobie w jednym szkicu Telegrama,
 - bezpieczne dopasowanie częściowego tytułu do aktywnych zadań autora lub wykonawcy, z doprecyzowaniem przy podobnych wynikach,
 - deterministyczne skróty `/dzisiaj`, `/jutro`, `/zalegle` i `/zadania` oraz odpowiadające im naturalne prośby tekstowe i głosowe, które omijają model językowy,
 - podgląd przed zapisem z przyciskami Zapisz/Popraw/Anuluj,

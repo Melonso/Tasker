@@ -158,6 +158,8 @@ Produkcyjny workflow `Tasker — Telegram + AI` w n8n korzysta z chronionych cre
 
 Kontrakt integracyjny `3` dodaje ręcznie zatwierdzane intencje `SHARE_TASK` i `REASSIGN_TASK`. Wdrożenie wymaga jednoczesnej aktualizacji aplikacji oraz aktywnego workflow n8n; workflow nie może zostać przełączony wcześniej niż API, ponieważ starszy kontrakt odrzuci nowe intencje. Przekazanie zadania przebudowuje przyszłe przypomnienia i jest odzwierciedlane w Google Calendar przez istniejący cykliczny worker synchronizacji.
 
+Kontrakt integracyjny `4` rozszerza `CREATE_TASK` o pole `shareWith`. Aplikację należy wdrożyć przed workflow n8n. Nie wymaga to migracji SQL, ponieważ identyfikator odbiorcy jest przechowywany w istniejącym payloadzie JSONB szkicu, a po potwierdzeniu korzysta z istniejącej tabeli `task_shares`.
+
 Kontrakt `3` wdrożono produkcyjnie 2026-08-30 razem z aktywną wersją workflow n8n `e7927994-0f13-4fbe-8e55-8514311e1a08`. Kontrola `/api/integrations/health` potwierdziła obie możliwości, a smoke test utworzył i anulował bez wykonywania mutacji kompletne szkice `SHARE_TASK` oraz `REASSIGN_TASK`. Przed testem wykonano i sprawdzono katalog backupu `tasker-before-telegram-sharing-20260830T215209Z.dump`.
 
 Po pierwszym teście Telegrama poprawiono błąd składni wyrażenia podglądu dla nowych intencji oraz skierowano wiadomości krótsze niż 3 znaki bezpośrednio do pomocy. Trzy błędne wykonania zatrzymały się przed wysłaniem podglądu i nie zmieniły żadnego zadania.

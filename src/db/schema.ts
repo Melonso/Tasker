@@ -385,6 +385,8 @@ export interface CreateTaskDraftPayload {
   description: string | null;
   assigneeId: string | null;
   assigneeName: string | null;
+  sharedUserId: string | null;
+  sharedUserName: string | null;
   dueAt: string | null;
   visibility: "PRIVATE" | "COMPANY" | "SHARED";
   priority: "LOW" | "NORMAL" | "HIGH" | "URGENT";

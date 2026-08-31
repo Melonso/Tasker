@@ -40,6 +40,7 @@ Data bazowa ustaleń: 2026-08-28. Strefa czasowa pierwszego wdrożenia: `Europe/
 34. Bot Telegram posiada deterministyczne skróty `/jutro` i `/zadania` obok `/dzisiaj` i `/zalegle`. Pełne zestawienie jest dzielone na mobilne sekcje kategorii zamiast szerokiej tabeli HTML, której zwykły tryb wiadomości Telegrama nie obsługuje.
 35. Wiadomości głosowe Telegrama są pobierane przez n8n, transkrybowane jako polska mowa przez OpenAI i dalej obsługiwane tą samą ścieżką szkicu co polecenia tekstowe. Tasker nie przechowuje oryginalnego nagrania ani transkrypcji.
 36. Polecenie „dodaj osobę do zadania” oznacza bezpośrednie udostępnienie bez zmiany wykonawcy, natomiast „przekaż/przypisz zadanie osobie” zmienia jedynego głównego wykonawcę. Obie operacje może zatwierdzić wyłącznie autor zadania i żadna nie podlega automatycznemu zatwierdzeniu.
+37. Polecenie tworzące nowe zadanie może równocześnie wskazać jedną osobę w `shareWith`. Wykonawca i odbiorca udostępnienia są odrębnymi rolami, a utworzenie zadania oraz bezpośredniego udostępnienia odbywa się atomowo. Widoczność `SHARED` bez odbiorcy wymaga doprecyzowania i nie może zostać automatycznie zatwierdzona.
 
 ## Użytkownicy pilotażowi i role
 

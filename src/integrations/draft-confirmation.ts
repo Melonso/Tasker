@@ -40,6 +40,7 @@ export async function confirmClaimedTaskDraft(
       priority: payload.priority,
       dueAt: payload.dueAt ? new Date(payload.dueAt) : null,
       source: "TELEGRAM",
+      shareUserIds: payload.sharedUserId ? [payload.sharedUserId] : [],
     });
   } else {
     if (mode === "AUTO") throw new TaskInputError("Automatyczne zatwierdzanie dotyczy tylko tworzenia zadań.");

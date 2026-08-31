@@ -24,6 +24,7 @@ const requestSchema = z.discriminatedUnion("intent", [z.object({
   title: z.string().trim().min(3).max(300),
   description: z.string().trim().max(5_000).optional(),
   assignee: z.string().trim().max(320).optional(),
+  shareWith: z.string().trim().max(320).optional(),
   dueDate: date.optional(),
   dueTime: time.optional(),
   visibility: z.enum(["PRIVATE", "COMPANY", "SHARED"]).default("PRIVATE"),

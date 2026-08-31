@@ -8,10 +8,11 @@ export async function GET(request: Request) {
   }
   return NextResponse.json({
     status: "ready",
-    contractVersion: 3,
+    contractVersion: 4,
     capabilities: [
       "TELEGRAM_LINK",
       "CREATE_TASK_DRAFT",
+      "CREATE_SHARED_TASK_DRAFT",
       "CONFIRM_TASK_DRAFT",
       "CANCEL_TASK_DRAFT",
       "SHARE_TASK_DRAFT",
