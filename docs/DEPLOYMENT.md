@@ -160,6 +160,8 @@ Kontrakt integracyjny `3` dodaje ręcznie zatwierdzane intencje `SHARE_TASK` i `
 
 Kontrakt integracyjny `4` rozszerza `CREATE_TASK` o pole `shareWith`. Aplikację należy wdrożyć przed workflow n8n. Nie wymaga to migracji SQL, ponieważ identyfikator odbiorcy jest przechowywany w istniejącym payloadzie JSONB szkicu, a po potwierdzeniu korzysta z istniejącej tabeli `task_shares`.
 
+Kontrakt `4` wdrożono produkcyjnie 2026-08-31 razem z aktywną wersją workflow n8n `efc2656c-67bc-4087-a24a-baa4de05927e`. Przed wdrożeniem utworzono i zweryfikowano backup `tasker-before-create-share-20260831T154526Z.dump`. Smoke test potwierdził `NEEDS_CLARIFICATION` dla `SHARED` bez odbiorcy oraz kompletny szkic `DRAFT` z Michałem Murawskim w `shareWith`; oba techniczne szkice anulowano bez utworzenia zadań.
+
 Kontrakt `3` wdrożono produkcyjnie 2026-08-30 razem z aktywną wersją workflow n8n `e7927994-0f13-4fbe-8e55-8514311e1a08`. Kontrola `/api/integrations/health` potwierdziła obie możliwości, a smoke test utworzył i anulował bez wykonywania mutacji kompletne szkice `SHARE_TASK` oraz `REASSIGN_TASK`. Przed testem wykonano i sprawdzono katalog backupu `tasker-before-telegram-sharing-20260830T215209Z.dump`.
 
 Po pierwszym teście Telegrama poprawiono błąd składni wyrażenia podglądu dla nowych intencji oraz skierowano wiadomości krótsze niż 3 znaki bezpośrednio do pomocy. Trzy błędne wykonania zatrzymały się przed wysłaniem podglądu i nie zmieniły żadnego zadania.
