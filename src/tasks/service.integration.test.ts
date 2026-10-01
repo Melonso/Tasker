@@ -2,11 +2,17 @@ import { and, eq } from "drizzle-orm";
 import { describe, expect, it } from "vitest";
 
 import { getDatabaseClient } from "@/db/client";
-import { taskRecurrences, tasks } from "@/db/schema";
+import { reminders, taskRecurrences, tasks } from "@/db/schema";
+import { dateTimePartsInZone } from "@/domain/reminders";
 import { createTestUser, setupIntegrationDatabase } from "@/test/integration";
 
 import { canAccessStoredTask } from "./queries";
-import { completeTaskForUser, createTaskForUser, shareTaskWithUser } from "./service";
+import {
+  completeTaskForUser,
+  createTaskForUser,
+  rescheduleOverdueRemindersForAssignee,
+  shareTaskWithUser,
+} from "./service";
 
 setupIntegrationDatabase();
 
@@ -96,5 +102,29 @@ describe("task sharing", () => {
     expect(task?.visibility).toBe("COMPANY");
     expect(await canAccessStoredTask(colleague, taskId)).toBe(true);
     expect(await canAccessStoredTask(external, taskId)).toBe(true);
+  });
+});
+
+describe("overdue reminder hour", () => {
+  it("moves scheduled overdue reminders to the new hour", async () => {
+    const user = await createTestUser();
+    const taskId = await createTaskForUser(user, {
+      title: "Zaległe",
+      assigneeId: user.id,
+      visibility: "PRIVATE",
+      priority: "NORMAL",
+      dueAt: new Date(Date.now() - 3_600_000),
+    });
+    const { db } = getDatabaseClient();
+    const moved = await db.transaction((tx) =>
+      rescheduleOverdueRemindersForAssignee(tx, user.id, { timeZone: user.timeZone, overdueReminderHour: 7 }),
+    );
+    expect(moved).toBe(1);
+    const scheduled = await db
+      .select()
+      .from(reminders)
+      .where(and(eq(reminders.taskId, taskId), eq(reminders.status, "SCHEDULED")));
+    expect(scheduled).toHaveLength(1);
+    expect(dateTimePartsInZone(scheduled[0]!.scheduledAt, user.timeZone).hour).toBe(7);
   });
 });

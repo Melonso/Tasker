@@ -8,6 +8,7 @@ import { requireUser } from "@/auth/session";
 import { getDatabaseClient } from "@/db/client";
 import { auditEvents, notificationPreferences, users } from "@/db/schema";
 import { AvatarInputError, avatarDataUrlFromUpload } from "@/settings/avatar";
+import { rescheduleOverdueRemindersForAssignee } from "@/tasks/service";
 import { runFormAction } from "@/lib/flash";
 
 const fullHour = z.string().regex(/^(?:[01]\d|2[0-3]):00$/);
@@ -78,6 +79,12 @@ export async function updateUserSettingsAction(
         avatarUpdated: Boolean(avatarDataUrl),
       },
     });
+    if (overdueReminderHour !== user.overdueReminderHour || parsed.data.timeZone !== user.timeZone) {
+      await rescheduleOverdueRemindersForAssignee(tx, user.id, {
+        timeZone: parsed.data.timeZone,
+        overdueReminderHour,
+      });
+    }
   });
 
   revalidatePath("/settings");

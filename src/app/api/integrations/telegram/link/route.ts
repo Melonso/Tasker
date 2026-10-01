@@ -3,6 +3,7 @@ import { NextResponse } from "next/server";
 import { z } from "zod";
 
 import { getDatabaseClient } from "@/db/client";
+import { isUniqueViolation } from "@/db/errors";
 import {
   auditEvents,
   telegramConnections,
@@ -86,7 +87,14 @@ export async function POST(request: Request) {
       metadata: { telegramUserId: parsed.data.telegramUserId },
     });
     return true;
+  }).catch((error: unknown) => {
+    // Another user linked this Telegram account between the check above and the insert.
+    if (isUniqueViolation(error)) return "ALREADY_LINKED" as const;
+    throw error;
   });
+  if (linked === "ALREADY_LINKED") {
+    return NextResponse.json({ error: "TELEGRAM_ACCOUNT_ALREADY_LINKED" }, { status: 409 });
+  }
   if (!linked) return NextResponse.json({ error: "CODE_ALREADY_USED" }, { status: 409 });
 
   return NextResponse.json({

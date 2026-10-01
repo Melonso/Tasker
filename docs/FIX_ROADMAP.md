@@ -41,15 +41,15 @@ Legenda statusu: ⬜ do zrobienia · 🔄 w toku · ✅ zrobione w kodzie (czeka
 
 | # | Problem | Naprawa | Status |
 |---|---------|---------|--------|
-| 3.1 | `canAccessTask` nieużywane i rozbieżne z regułą SQL | Jedna reguła dostępu (SQL — udostępnienie daje dostęp niezależnie od widoczności, bo zadanie firmowe też można udostępnić osobie zewnętrznej), usunięcie martwego kodu | ⬜ |
+| 3.1 | `canAccessTask` nieużywane i rozbieżne z regułą SQL | Jedna reguła dostępu (SQL — udostępnienie daje dostęp niezależnie od widoczności, bo zadanie firmowe też można udostępnić osobie zewnętrznej), usunięcie martwego kodu | ✅ |
 | 3.2 | `selectDistinct` z joinami do deduplikacji | Warunek dostępu przez `EXISTS` | ✅ |
-| 3.3 | Podsumowania Telegram filtrowane w JS | Filtrowanie w SQL | ⬜ |
+| 3.3 | Podsumowania Telegram filtrowane w JS | Filtrowanie w SQL | ✅ |
 | 3.4 | Wstrzymanie/wznowienie cyklu bez transakcji | Transakcja | ✅ |
-| 3.5 | Zmiana godziny przypomnień nie przelicza zaplanowanych | Przeliczenie zaplanowanych `OVERDUE_DAILY` | ⬜ |
+| 3.5 | Zmiana godziny przypomnień nie przelicza zaplanowanych | Przeliczenie zaplanowanych `OVERDUE_DAILY` | ✅ |
 | 3.6 | Sesje nie są czyszczone, `lastSeenAt` nieaktualizowane | Sprzątanie w workerze, aktualizacja z ograniczeniem częstotliwości | ✅ |
-| 3.7 | Brak walidacji UUID udostępnień; wyścig przy łączeniu Telegrama → 500 | Walidacja i obsługa konfliktu (walidacja UUID w formularzu zadania: ✅) | 🔄 |
+| 3.7 | Brak walidacji UUID udostępnień; wyścig przy łączeniu Telegrama → 500 | Walidacja UUID w formularzu zadania, konflikt łączenia Telegrama → 409 | ✅ |
 | 3.8 | Dostawy Telegram odłączonych użytkowników wiszą w `PENDING` | Oznaczanie jako `SKIPPED` | ✅ |
-| 3.9 | Surowe enumy (`PRIVATE`, `NORMAL`) w UI i podglądzie szkicu | Polskie etykiety | ⬜ |
+| 3.9 | Surowe enumy (`PRIVATE`, `NORMAL`) w UI i podglądzie szkicu | Polskie etykiety | ✅ |
 | 3.10 | Literówka „Tasket Telegram Bot” w nazwie poświadczenia n8n | Źródło workflow poprawione; zmiana nazwy poświadczenia w n8n przy wdrożeniu | 🔄 |
 | 3.11 | Przekazanie zadania odbiera dostęp poprzedniemu wykonawcy | Decyzja produktowa | ❔ |
 | 3.12 | Flaga `isExternal` zespołu niczego nie wymusza | Decyzja produktowa | ❔ |

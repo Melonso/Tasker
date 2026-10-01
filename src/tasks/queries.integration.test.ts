@@ -18,6 +18,7 @@ describe("task access rule", () => {
     const colleague = await createTestUser();
     const external = await createTestUser({ roles: ["EXTERNAL"] });
     const teamMember = await createTestUser();
+    const administrator = await createTestUser({ roles: ["APP_ADMIN", "COMPANY_MEMBER"] });
     const { db } = getDatabaseClient();
     const [team] = await db.insert(teams).values({ name: "Marketing", createdById: owner.id }).returning();
     await db.insert(teamMembers).values([{ teamId: team!.id, userId: owner.id }, { teamId: team!.id, userId: teamMember.id }]);
@@ -34,13 +35,14 @@ describe("task access rule", () => {
     });
 
     const access = async (taskId: string) => ({
+      administrator: await canAccessStoredTask(administrator, taskId),
       colleague: await canAccessStoredTask(colleague, taskId),
       external: await canAccessStoredTask(external, taskId),
       teamMember: await canAccessStoredTask(teamMember, taskId),
     });
-    expect(await access(privateTask)).toEqual({ colleague: false, external: false, teamMember: false });
-    expect(await access(companyTask)).toEqual({ colleague: true, external: false, teamMember: true });
-    expect(await access(sharedTask)).toEqual({ colleague: false, external: true, teamMember: true });
+    expect(await access(privateTask)).toEqual({ administrator: false, colleague: false, external: false, teamMember: false });
+    expect(await access(companyTask)).toEqual({ administrator: true, colleague: true, external: false, teamMember: true });
+    expect(await access(sharedTask)).toEqual({ administrator: false, colleague: false, external: true, teamMember: true });
   });
 });
 

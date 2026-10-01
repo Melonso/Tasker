@@ -16,6 +16,7 @@ import {
 } from "@/tasks/actions";
 import { getTaskDetails, listAssignableUsers, listTeamsForSharing } from "@/tasks/queries";
 import { recurrenceLabel } from "@/domain/recurrence";
+import { priorityLabels, visibilityLabels } from "@/tasks/labels";
 
 function dateTime(value: Date | null, timeZone: string) {
   if (!value) return "Brak terminu";
@@ -65,8 +66,8 @@ export default async function TaskDetailsPage({ params }: { params: Promise<{ ta
           <div><dt>Wykonawca</dt><dd className="person-value"><UserAvatar avatarUrl={task.assigneeAvatarUrl} firstName={task.assigneeFirstName} lastName={task.assigneeLastName} size={30} />{task.assigneeFirstName} {task.assigneeLastName}</dd></div>
           <div><dt>Autor</dt><dd className="person-value"><UserAvatar avatarUrl={task.authorAvatarUrl} firstName={task.authorFirstName} lastName={task.authorLastName} size={30} />{task.authorFirstName} {task.authorLastName}</dd></div>
           <div><dt>Termin</dt><dd>{dateTime(task.dueAt, user.timeZone)}</dd></div>
-          <div><dt>Widoczność</dt><dd>{task.visibility}</dd></div>
-          <div><dt>Priorytet</dt><dd>{task.priority}</dd></div>
+          <div><dt>Widoczność</dt><dd>{visibilityLabels[task.visibility]}</dd></div>
+          <div><dt>Priorytet</dt><dd>{priorityLabels[task.priority]}</dd></div>
           <div><dt>Cykl</dt><dd>{task.recurrence ? `${recurrenceLabel(task.recurrence.rule)}${task.recurrence.isPaused ? " · wstrzymany" : ""}` : "Jednorazowe"}</dd></div>
         </dl>
         {task.waitingReason ? <div className="waiting-note"><strong>Powód oczekiwania</strong><p>{task.waitingReason}</p></div> : null}

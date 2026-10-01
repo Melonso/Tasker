@@ -14,7 +14,7 @@ import {
   userRoles,
   users,
 } from "@/db/schema";
-import { buildReminderSchedule, zonedDateTimeToUtc } from "@/domain/reminders";
+import { buildReminderSchedule, nextDailyReminder, zonedDateTimeToUtc } from "@/domain/reminders";
 import { firstRecurringDueAtAfter, nextRecurringDueAt, type RecurrenceRule } from "@/domain/recurrence";
 
 import { isCalendarDateKey, isClockTimeKey } from "@/lib/dates";
@@ -639,4 +639,45 @@ export async function updateTaskSharesForUser(
     });
     return task.id;
   });
+}
+
+/**
+ * Moves the scheduled daily overdue reminders of the user's active tasks to a new hour, e.g. after
+ * the user changed the overdue reminder time in their settings.
+ */
+export async function rescheduleOverdueRemindersForAssignee(
+  tx: DatabaseTransaction,
+  userId: string,
+  settings: { timeZone: string; overdueReminderHour: number },
+  now = new Date(),
+) {
+  const pending = await tx
+    .select({ reminderId: reminders.id, taskId: tasks.id, dueAt: tasks.dueAt })
+    .from(reminders)
+    .innerJoin(tasks, eq(reminders.taskId, tasks.id))
+    .where(
+      and(
+        eq(tasks.assigneeId, userId),
+        inArray(tasks.status, ACTIVE_TASK_STATUSES),
+        eq(reminders.kind, "OVERDUE_DAILY"),
+        eq(reminders.status, "SCHEDULED"),
+      ),
+    );
+  for (const reminder of pending) {
+    if (!reminder.dueAt) continue;
+    const anchor = reminder.dueAt.getTime() > now.getTime() ? reminder.dueAt : now;
+    const scheduledAt = nextDailyReminder(anchor, settings.timeZone, settings.overdueReminderHour);
+    await tx
+      .update(reminders)
+      .set({ status: "CANCELED", updatedAt: now })
+      .where(eq(reminders.id, reminder.reminderId));
+    await tx
+      .insert(reminders)
+      .values({ taskId: reminder.taskId, kind: "OVERDUE_DAILY", scheduledAt })
+      .onConflictDoUpdate({
+        target: [reminders.taskId, reminders.kind, reminders.scheduledAt],
+        set: { status: "SCHEDULED", attemptCount: 0, processedAt: null, lastError: null, updatedAt: now },
+      });
+  }
+  return pending.length;
 }
