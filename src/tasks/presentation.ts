@@ -5,6 +5,30 @@ export interface TodayTaskPresentation {
 
 export type TodayTaskSection = "overdue" | "planned" | "dueToday";
 
+export type TaskListRelationship = "OWN" | "DELEGATED" | "ASSIGNED" | "SHARED";
+
+export type TaskPriority = "LOW" | "NORMAL" | "HIGH" | "URGENT";
+
+const taskPriorityOrder: Record<TaskPriority, number> = {
+  URGENT: 0,
+  HIGH: 1,
+  NORMAL: 2,
+  LOW: 3,
+};
+
+export function taskPriorityRank(priority: TaskPriority) {
+  return taskPriorityOrder[priority];
+}
+
+export function taskListRelationship(
+  task: { authorId: string; assigneeId: string },
+  userId: string,
+): TaskListRelationship {
+  if (task.authorId === userId) return task.assigneeId === userId ? "OWN" : "DELEGATED";
+  if (task.assigneeId === userId) return "ASSIGNED";
+  return "SHARED";
+}
+
 export function localDateKey(date: Date, timeZone: string) {
   return new Intl.DateTimeFormat("en-CA", {
     timeZone,

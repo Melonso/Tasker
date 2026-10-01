@@ -1,6 +1,14 @@
 import { describe, expect, it } from "vitest";
 
-import { groupTodayTasks, localDateKey, localDateKeyAfterDays, localTimeKey, todayTaskSection } from "./presentation";
+import {
+  groupTodayTasks,
+  localDateKey,
+  localDateKeyAfterDays,
+  localTimeKey,
+  taskListRelationship,
+  taskPriorityRank,
+  todayTaskSection,
+} from "./presentation";
 
 describe("today task presentation", () => {
   it("always places overdue work in the overdue section", () => {
@@ -37,5 +45,26 @@ describe("today task presentation", () => {
     const instant = new Date("2026-10-24T22:30:00.000Z");
     expect(localDateKeyAfterDays(instant, "Europe/Warsaw", 1)).toBe("2026-10-26");
     expect(localTimeKey(new Date("2026-08-29T08:15:00.000Z"), "Europe/Warsaw")).toBe("10:15");
+  });
+});
+
+describe("task list relationship", () => {
+  it("distinguishes an assigned task from a task only shared with the viewer", () => {
+    expect(taskListRelationship({ authorId: "mateusz", assigneeId: "michal" }, "michal")).toBe("ASSIGNED");
+    expect(taskListRelationship({ authorId: "mateusz", assigneeId: "mateusz" }, "michal")).toBe("SHARED");
+  });
+
+  it("distinguishes the author's own and delegated tasks", () => {
+    expect(taskListRelationship({ authorId: "mateusz", assigneeId: "mateusz" }, "mateusz")).toBe("OWN");
+    expect(taskListRelationship({ authorId: "mateusz", assigneeId: "michal" }, "mateusz")).toBe("DELEGATED");
+  });
+});
+
+describe("task priority ordering", () => {
+  it("places urgent and high priority tasks before normal and low priority tasks", () => {
+    expect(["LOW", "URGENT", "NORMAL", "HIGH"].sort((left, right) =>
+      taskPriorityRank(left as "LOW" | "NORMAL" | "HIGH" | "URGENT")
+      - taskPriorityRank(right as "LOW" | "NORMAL" | "HIGH" | "URGENT")))
+      .toEqual(["URGENT", "HIGH", "NORMAL", "LOW"]);
   });
 });

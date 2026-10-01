@@ -18,6 +18,7 @@ import {
   users,
 } from "@/db/schema";
 import { nextRecurringDueAt } from "@/domain/recurrence";
+import { queueTaskAccessNotifications } from "@/notifications/task-access";
 import { localDateKey, localDateKeyAfterDays, localTimeKey } from "./presentation";
 import { canAccessStoredTask } from "./queries";
 import { completeTaskForUser, createTaskForUser, dueAtFromInput, rescheduleTaskForUser, TaskInputError } from "./service";
@@ -26,6 +27,7 @@ const taskSchema = z.object({
   title: z.string().trim().min(3, "Tytuł musi zawierać co najmniej 3 znaki.").max(300),
   description: z.string().trim().max(5_000).optional(),
   assigneeId: z.uuid(),
+  taskScope: z.enum(["PRIVATE", "COMPANY"]),
   visibility: z.enum(["PRIVATE", "COMPANY", "SHARED"]),
   priority: z.enum(["LOW", "NORMAL", "HIGH", "URGENT"]),
   dueDate: z.string().regex(/^\d{4}-\d{2}-\d{2}$/).optional().or(z.literal("")),
@@ -47,6 +49,8 @@ const waitingSchema = z.object({
 });
 
 const taskIdSchema = z.object({ taskId: z.uuid() });
+const taskScopeSchema = z.object({ taskId: z.uuid(), taskScope: z.enum(["PRIVATE", "COMPANY"]) });
+const taskPrioritySchema = z.object({ taskId: z.uuid(), priority: z.enum(["LOW", "NORMAL", "HIGH", "URGENT"]) });
 
 const commentSchema = z.object({
   taskId: z.uuid(),
@@ -72,6 +76,7 @@ export async function createTaskAction(
     title: formData.get("title"),
     description: formData.get("description") || undefined,
     assigneeId: formData.get("assigneeId"),
+    taskScope: formData.get("taskScope"),
     visibility: formData.get("visibility"),
     priority: formData.get("priority"),
     dueDate: formData.get("dueDate"),
@@ -91,6 +96,7 @@ export async function createTaskAction(
       title: parsed.data.title,
       description: parsed.data.description,
       assigneeId: parsed.data.assigneeId,
+      scope: parsed.data.taskScope,
       visibility: parsed.data.visibility,
       priority: parsed.data.priority,
       dueAt,
@@ -252,6 +258,64 @@ export async function cancelTaskAction(formData: FormData) {
   revalidatePath(`/tasks/${task.id}`);
 }
 
+export async function updateTaskScopeAction(formData: FormData) {
+  const user = await requireUser();
+  const parsed = taskScopeSchema.parse({ taskId: formData.get("taskId"), taskScope: formData.get("taskScope") });
+  const { db } = getDatabaseClient();
+  const [task] = await db
+    .select({ id: tasks.id, authorId: tasks.authorId, scope: tasks.scope, version: tasks.version })
+    .from(tasks)
+    .where(eq(tasks.id, parsed.taskId))
+    .limit(1);
+  if (!task || task.authorId !== user.id) throw new Error("Tylko autor może zmienić rodzaj zadania.");
+  if (task.scope === parsed.taskScope) return;
+
+  await db.transaction(async (tx) => {
+    await tx
+      .update(tasks)
+      .set({ scope: parsed.taskScope, updatedAt: new Date(), version: task.version + 1 })
+      .where(eq(tasks.id, task.id));
+    await tx.insert(auditEvents).values({
+      actorId: user.id,
+      taskId: task.id,
+      action: "TASK_SCOPE_UPDATED",
+      metadata: { previousScope: task.scope, scope: parsed.taskScope },
+    });
+  });
+  revalidatePath("/");
+  revalidatePath(`/tasks/${task.id}`);
+}
+
+export async function updateTaskPriorityAction(formData: FormData) {
+  const user = await requireUser();
+  const parsed = taskPrioritySchema.parse({ taskId: formData.get("taskId"), priority: formData.get("priority") });
+  const { db } = getDatabaseClient();
+  const [task] = await db
+    .select({ id: tasks.id, authorId: tasks.authorId, assigneeId: tasks.assigneeId, priority: tasks.priority, version: tasks.version })
+    .from(tasks)
+    .where(eq(tasks.id, parsed.taskId))
+    .limit(1);
+  if (!task || (task.authorId !== user.id && task.assigneeId !== user.id)) {
+    throw new Error("Tylko autor lub wykonawca może zmienić priorytet zadania.");
+  }
+  if (task.priority === parsed.priority) return;
+
+  await db.transaction(async (tx) => {
+    await tx
+      .update(tasks)
+      .set({ priority: parsed.priority, updatedAt: new Date(), version: task.version + 1 })
+      .where(eq(tasks.id, task.id));
+    await tx.insert(auditEvents).values({
+      actorId: user.id,
+      taskId: task.id,
+      action: "TASK_PRIORITY_UPDATED",
+      metadata: { previousPriority: task.priority, priority: parsed.priority },
+    });
+  });
+  revalidatePath("/");
+  revalidatePath(`/tasks/${task.id}`);
+}
+
 export async function addTaskCommentAction(formData: FormData) {
   const user = await requireUser();
   const parsed = commentSchema.parse({ taskId: formData.get("taskId"), body: formData.get("body") });
@@ -360,18 +424,25 @@ export async function updateTaskSharesAction(formData: FormData) {
     throw new Error("Wybierz przynajmniej jedną osobę lub zespół.");
   }
   const { db } = getDatabaseClient();
-  const [availableUsers, availableTeams] = await Promise.all([
+  const [availableUsers, availableTeams, existingShares] = await Promise.all([
     uniqueUserIds.length
       ? db.select({ id: users.id }).from(users).where(and(inArray(users.id, uniqueUserIds), eq(users.isActive, true)))
       : Promise.resolve([]),
     uniqueTeamIds.length
       ? db.select({ id: teams.id }).from(teams).where(and(inArray(teams.id, uniqueTeamIds), eq(teams.createdById, user.id)))
       : Promise.resolve([]),
+    db.select({ userId: taskShares.userId }).from(taskShares).where(eq(taskShares.taskId, task.id)),
   ]);
   if (availableUsers.length !== uniqueUserIds.length || availableTeams.length !== uniqueTeamIds.length) {
     throw new Error("Co najmniej jeden odbiorca nie jest dostępny.");
   }
+  const existingUserIds = new Set(existingShares.flatMap((share) => share.userId ? [share.userId] : []));
+  const newlySharedUserIds = uniqueUserIds.filter((userId) => !existingUserIds.has(userId));
   await db.transaction(async (tx) => {
+    await tx
+      .update(tasks)
+      .set({ updatedAt: new Date(), version: task.version + 1 })
+      .where(eq(tasks.id, task.id));
     await tx.delete(taskShares).where(eq(taskShares.taskId, task.id));
     await tx.insert(taskShares).values([
       ...uniqueUserIds.map((userId) => ({ taskId: task.id, userId })),
@@ -382,6 +453,13 @@ export async function updateTaskSharesAction(formData: FormData) {
       taskId: task.id,
       action: "TASK_SHARES_UPDATED",
       metadata: { sharedUsers: uniqueUserIds.length, sharedTeams: uniqueTeamIds.length },
+    });
+    await queueTaskAccessNotifications(tx, {
+      taskId: task.id,
+      taskTitle: task.title,
+      actorName: `${user.firstName} ${user.lastName}`,
+      eventKey: `task-shares-updated:${task.id}:${task.version + 1}`,
+      recipients: newlySharedUserIds.map((userId) => ({ userId, kind: "SHARED" })),
     });
   });
   revalidatePath(`/tasks/${task.id}`);

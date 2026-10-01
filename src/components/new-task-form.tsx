@@ -58,6 +58,14 @@ export function NewTaskForm({
           </select>
         </label>
         <label>
+          Rodzaj zadania
+          <select defaultValue="PRIVATE" name="taskScope">
+            <option value="PRIVATE">Prywatne</option>
+            <option value="COMPANY">Firmowe</option>
+          </select>
+          <small>Określa sekcję zadania, niezależnie od tego, komu je udostępnisz.</small>
+        </label>
+        <label>
           Data terminu
           <input name="dueDate" type="date" />
         </label>
@@ -93,11 +101,11 @@ export function NewTaskForm({
               <textarea maxLength={5000} name="description" placeholder="Dodatkowy kontekst, oczekiwany rezultat…" rows={4} />
             </label>
             <label>
-              Widoczność
+              Dostęp
               <select name="visibility" onChange={(event) => setVisibility(event.target.value)} value={visibility}>
-                <option value="PRIVATE">Prywatne</option>
-                <option value="COMPANY">Firmowe</option>
-                <option value="SHARED">Udostępnione</option>
+                <option value="PRIVATE">Tylko autor i wykonawca</option>
+                <option value="COMPANY">Wszyscy użytkownicy firmowi</option>
+                <option value="SHARED">Wybrane osoby lub zespoły</option>
               </select>
             </label>
             <label>

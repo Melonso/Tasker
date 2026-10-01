@@ -5,6 +5,7 @@ import { processDueReminderBatch, updateWorkerHeartbeat } from "../notifications
 import { processWebPushBatch } from "../notifications/web-push-delivery";
 import { processGoogleCalendarBatch } from "../integrations/google/calendar-sync";
 import { processDraftAutoConfirmBatch } from "../integrations/draft-auto-confirm";
+import { processDueNoteReminderBatch } from "../notes/reminder-processor";
 
 const REMINDER_QUEUE = "tasker-reminders-dispatch";
 const env = getServerEnv();
@@ -41,10 +42,11 @@ await boss.work(
     for (const job of jobs) {
       const draftAutoConfirm = await processDraftAutoConfirmBatch();
       const reminders = await processDueReminderBatch();
+      const noteReminders = await processDueNoteReminderBatch();
       const webPush = await processWebPushBatch();
       const googleCalendar = await processGoogleCalendarBatch();
-      await updateWorkerHeartbeat({ draftAutoConfirm, reminders, webPush, googleCalendar });
-      console.info("Reminder scan completed", { jobId: job.id, draftAutoConfirm, reminders, webPush, googleCalendar });
+      await updateWorkerHeartbeat({ draftAutoConfirm, reminders, noteReminders, webPush, googleCalendar });
+      console.info("Reminder scan completed", { jobId: job.id, draftAutoConfirm, reminders, noteReminders, webPush, googleCalendar });
     }
   },
 );

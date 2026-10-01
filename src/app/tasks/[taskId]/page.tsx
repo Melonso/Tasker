@@ -2,6 +2,7 @@ import Link from "next/link";
 import { notFound } from "next/navigation";
 
 import { requireUser } from "@/auth/session";
+import { AutoSaveTaskSelect } from "@/components/auto-save-task-select";
 import { UserAvatar } from "@/components/user-avatar";
 import {
   addTaskCommentAction,
@@ -11,6 +12,8 @@ import {
   resumeTaskAction,
   resumeTaskRecurrenceAction,
   updateTaskRecurrenceAction,
+  updateTaskPriorityAction,
+  updateTaskScopeAction,
   updateTaskSharesAction,
   waitTaskAction,
 } from "@/tasks/actions";
@@ -31,6 +34,19 @@ const statusLabels = {
   WAITING: "Oczekujące",
   COMPLETED: "Zrobione",
   CANCELED: "Anulowane",
+};
+
+const visibilityLabels = {
+  PRIVATE: "Prywatny — autor i wykonawca",
+  COMPANY: "Firmowy — użytkownicy firmowi",
+  SHARED: "Udostępniony wybranym osobom lub zespołom",
+};
+
+const priorityLabels = {
+  LOW: "Niski",
+  NORMAL: "Normalny",
+  HIGH: "Wysoki",
+  URGENT: "Pilny",
 };
 
 export default async function TaskDetailsPage({ params }: { params: Promise<{ taskId: string }> }) {
@@ -65,8 +81,45 @@ export default async function TaskDetailsPage({ params }: { params: Promise<{ ta
           <div><dt>Wykonawca</dt><dd className="person-value"><UserAvatar avatarDataUrl={task.assigneeAvatarDataUrl} firstName={task.assigneeFirstName} lastName={task.assigneeLastName} size={30} />{task.assigneeFirstName} {task.assigneeLastName}</dd></div>
           <div><dt>Autor</dt><dd className="person-value"><UserAvatar avatarDataUrl={task.authorAvatarDataUrl} firstName={task.authorFirstName} lastName={task.authorLastName} size={30} />{task.authorFirstName} {task.authorLastName}</dd></div>
           <div><dt>Termin</dt><dd>{dateTime(task.dueAt, user.timeZone)}</dd></div>
-          <div><dt>Widoczność</dt><dd>{task.visibility}</dd></div>
-          <div><dt>Priorytet</dt><dd>{task.priority}</dd></div>
+          <div><dt>Dostęp</dt><dd>{visibilityLabels[task.visibility]}</dd></div>
+          <div>
+            <dt>Typ zadania</dt>
+            <dd>
+              {task.authorId === user.id ? (
+                <AutoSaveTaskSelect
+                  action={updateTaskScopeAction}
+                  ariaLabel="Typ zadania"
+                  fieldName="taskScope"
+                  options={[
+                    { value: "PRIVATE", label: "Prywatny" },
+                    { value: "COMPANY", label: "Firmowy" },
+                  ]}
+                  taskId={task.id}
+                  value={task.scope}
+                />
+              ) : task.scope === "COMPANY" ? "Firmowy" : "Prywatny"}
+            </dd>
+          </div>
+          <div>
+            <dt>Priorytet</dt>
+            <dd>
+              {editable ? (
+                <AutoSaveTaskSelect
+                  action={updateTaskPriorityAction}
+                  ariaLabel="Priorytet zadania"
+                  fieldName="priority"
+                  options={[
+                    { value: "URGENT", label: "Pilny" },
+                    { value: "HIGH", label: "Wysoki" },
+                    { value: "NORMAL", label: "Normalny" },
+                    { value: "LOW", label: "Niski" },
+                  ]}
+                  taskId={task.id}
+                  value={task.priority}
+                />
+              ) : priorityLabels[task.priority]}
+            </dd>
+          </div>
           <div><dt>Cykl</dt><dd>{task.recurrence ? `${recurrenceLabel(task.recurrence.rule)}${task.recurrence.isPaused ? " · wstrzymany" : ""}` : "Jednorazowe"}</dd></div>
         </dl>
         {task.waitingReason ? <div className="waiting-note"><strong>Powód oczekiwania</strong><p>{task.waitingReason}</p></div> : null}

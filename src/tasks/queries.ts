@@ -1,4 +1,4 @@
-import { and, asc, desc, eq, isNotNull, lte, ne, or, sql } from "drizzle-orm";
+import { and, asc, countDistinct, desc, eq, isNotNull, lte, ne, or, sql } from "drizzle-orm";
 import { alias } from "drizzle-orm/pg-core";
 
 import type { AuthenticatedUser } from "@/auth/session";
@@ -14,7 +14,7 @@ import {
   users,
 } from "@/db/schema";
 import { zonedDateTimeToUtc } from "@/domain/reminders";
-import { localDateKey } from "./presentation";
+import { localDateKey, taskPriorityRank } from "./presentation";
 
 import { isCompanyUser } from "./policy";
 
@@ -29,6 +29,14 @@ export function accessCondition(user: AuthenticatedUser) {
   ];
   if (isCompanyUser(user.roles)) directConditions.push(eq(tasks.visibility, "COMPANY"));
   return or(...directConditions);
+}
+
+function personalViewRecipientCondition(user: AuthenticatedUser) {
+  return or(
+    eq(tasks.assigneeId, user.id),
+    eq(taskShares.userId, user.id),
+    eq(teamMembers.userId, user.id),
+  );
 }
 
 export async function canAccessStoredTask(user: AuthenticatedUser, taskId: string) {
@@ -56,6 +64,7 @@ export async function getTaskDetails(user: AuthenticatedUser, taskId: string) {
       title: tasks.title,
       description: tasks.description,
       status: tasks.status,
+      scope: tasks.scope,
       visibility: tasks.visibility,
       priority: tasks.priority,
       dueAt: tasks.dueAt,
@@ -127,10 +136,34 @@ export async function getTaskDetails(user: AuthenticatedUser, taskId: string) {
   return { ...task, comments, dueDateHistory, recurrence: recurrence ?? null, shares: shareRows };
 }
 
-function viewCondition(user: AuthenticatedUser, view: Exclude<TaskView, "today">) {
+function taskViewCondition(user: AuthenticatedUser, view: TaskView, now = new Date()) {
   switch (view) {
+    case "today": {
+      const localDate = localDateKey(now, user.timeZone);
+      const [year, month, day] = localDate.split("-").map(Number);
+      const nextDay = new Date(Date.UTC(year, month - 1, day + 1));
+      const endOfDay = new Date(
+        zonedDateTimeToUtc(
+          {
+            year: nextDay.getUTCFullYear(),
+            month: nextDay.getUTCMonth() + 1,
+            day: nextDay.getUTCDate(),
+            hour: 0,
+          },
+          user.timeZone,
+        ).getTime() - 1,
+      );
+      return and(
+        personalViewRecipientCondition(user),
+        eq(tasks.status, "OPEN"),
+        or(
+          and(isNotNull(tasks.dueAt), lte(tasks.dueAt, endOfDay)),
+          eq(tasks.plannedForDate, localDate),
+        ),
+      );
+    }
     case "current":
-      return and(eq(tasks.assigneeId, user.id), eq(tasks.status, "OPEN"));
+      return and(personalViewRecipientCondition(user), eq(tasks.status, "OPEN"));
     case "waiting":
       return eq(tasks.status, "WAITING");
     case "delegated":
@@ -145,48 +178,24 @@ function viewCondition(user: AuthenticatedUser, view: Exclude<TaskView, "today">
 export async function listTasksForView(user: AuthenticatedUser, view: TaskView) {
   const { db } = getDatabaseClient();
   const assignee = alias(users, "assignee");
-  const now = new Date();
+  const author = alias(users, "list_author");
 
-  let viewFilter;
-  if (view === "today") {
-    const localDate = localDateKey(now, user.timeZone);
-    const [year, month, day] = localDate.split("-").map(Number);
-    const nextDay = new Date(Date.UTC(year, month - 1, day + 1));
-    const endOfDay = new Date(
-      zonedDateTimeToUtc(
-        {
-          year: nextDay.getUTCFullYear(),
-          month: nextDay.getUTCMonth() + 1,
-          day: nextDay.getUTCDate(),
-          hour: 0,
-        },
-        user.timeZone,
-      ).getTime() - 1,
-    );
-    viewFilter = and(
-      eq(tasks.assigneeId, user.id),
-      eq(tasks.status, "OPEN"),
-      or(
-        and(isNotNull(tasks.dueAt), lte(tasks.dueAt, endOfDay)),
-        eq(tasks.plannedForDate, localDate),
-      ),
-    );
-  } else {
-    viewFilter = viewCondition(user, view);
-  }
-
-  return db
+  const rows = await db
     .selectDistinct({
       id: tasks.id,
       title: tasks.title,
       description: tasks.description,
       status: tasks.status,
+      scope: tasks.scope,
       visibility: tasks.visibility,
       priority: tasks.priority,
       dueAt: tasks.dueAt,
       plannedForDate: tasks.plannedForDate,
       authorId: tasks.authorId,
       assigneeId: tasks.assigneeId,
+      authorFirstName: author.firstName,
+      authorLastName: author.lastName,
+      authorAvatarDataUrl: author.avatarDataUrl,
       assigneeFirstName: assignee.firstName,
       assigneeLastName: assignee.lastName,
       assigneeAvatarDataUrl: assignee.avatarDataUrl,
@@ -198,12 +207,28 @@ export async function listTasksForView(user: AuthenticatedUser, view: TaskView) 
       isOverdue: sql<boolean>`${tasks.dueAt} is not null and ${tasks.dueAt} < now() and ${tasks.status} <> 'COMPLETED'`,
     })
     .from(tasks)
+    .innerJoin(author, eq(tasks.authorId, author.id))
     .innerJoin(assignee, eq(tasks.assigneeId, assignee.id))
     .leftJoin(taskShares, eq(tasks.id, taskShares.taskId))
     .leftJoin(teamMembers, and(eq(taskShares.teamId, teamMembers.teamId), eq(teamMembers.userId, user.id)))
     .leftJoin(taskRecurrences, eq(tasks.id, taskRecurrences.taskId))
-    .where(and(accessCondition(user), viewFilter))
+    .where(and(accessCondition(user), taskViewCondition(user, view)))
     .orderBy(asc(tasks.dueAt), desc(tasks.createdAt));
+
+  return rows.sort((left, right) => taskPriorityRank(left.priority) - taskPriorityRank(right.priority));
+}
+
+export async function countTasksForView(user: AuthenticatedUser, view: TaskView) {
+  const { db } = getDatabaseClient();
+  const [row] = await db
+    .select({ value: countDistinct(tasks.id) })
+    .from(tasks)
+    .leftJoin(taskShares, eq(tasks.id, taskShares.taskId))
+    .leftJoin(teamMembers, and(eq(taskShares.teamId, teamMembers.teamId), eq(teamMembers.userId, user.id)))
+    .leftJoin(taskRecurrences, eq(tasks.id, taskRecurrences.taskId))
+    .where(and(accessCondition(user), taskViewCondition(user, view)));
+
+  return Number(row?.value ?? 0);
 }
 
 export async function listAssignableUsers(user: AuthenticatedUser) {

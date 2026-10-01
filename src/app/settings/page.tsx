@@ -4,10 +4,12 @@ import { TelegramLinkControl } from "@/components/telegram-link-control";
 import { PushNotificationControl } from "@/components/push-notification-control";
 import { GoogleCalendarControl } from "@/components/google-calendar-control";
 import { NotificationPreferencesForm } from "@/components/notification-preferences-form";
+import { NoteReminderSettings } from "@/components/note-reminder-settings";
 import { getDatabaseClient } from "@/db/client";
 import { googleConnections, notificationPreferences, pushSubscriptions, telegramConnections } from "@/db/schema";
 import { count, eq } from "drizzle-orm";
 import { googleOAuthConfigured } from "@/integrations/google/client";
+import { listNoteReminderSchedules } from "@/notes/queries";
 
 const integrationCards = [
   {
@@ -38,7 +40,7 @@ export const metadata = { title: "Moje ustawienia" };
 export default async function SettingsPage() {
   const user = await requireUser();
   const { db } = getDatabaseClient();
-  const [[telegramConnection], [pushCount], [googleConnection], preferenceRows] = await Promise.all([
+  const [[telegramConnection], [pushCount], [googleConnection], preferenceRows, noteReminderRows] = await Promise.all([
     db
       .select({ status: telegramConnections.status })
       .from(telegramConnections)
@@ -57,8 +59,17 @@ export default async function SettingsPage() {
       .select({ channel: notificationPreferences.channel, enabled: notificationPreferences.enabled })
       .from(notificationPreferences)
       .where(eq(notificationPreferences.userId, user.id)),
+    listNoteReminderSchedules(user.id),
   ]);
   const preferences = new Map(preferenceRows.map((preference) => [preference.channel, preference.enabled]));
+  const reminderFormatter = new Intl.DateTimeFormat("pl-PL", {
+    timeZone: user.timeZone,
+    weekday: "short",
+    day: "2-digit",
+    month: "2-digit",
+    hour: "2-digit",
+    minute: "2-digit",
+  });
   return (
     <div className="page-stack narrow-page">
       <header className="page-header">
@@ -106,6 +117,20 @@ export default async function SettingsPage() {
           telegramEnabled={preferences.get("TELEGRAM") ?? true}
           webPushEnabled={preferences.get("WEB_PUSH") ?? true}
         />
+      </section>
+
+      <section className="panel settings-section">
+        <div className="panel-heading">
+          <div><p className="eyebrow">Notatki</p><h2>Przypomnienia o porządkowaniu</h2></div>
+        </div>
+        <NoteReminderSettings schedules={noteReminderRows.map((schedule) => ({
+          id: schedule.id,
+          frequency: schedule.frequency,
+          weekday: schedule.weekday,
+          time: `${String(schedule.hour).padStart(2, "0")}:${String(schedule.minute).padStart(2, "0")}`,
+          enabled: schedule.enabled,
+          nextLabel: reminderFormatter.format(schedule.nextReminderAt),
+        }))} />
       </section>
 
       <section className="panel settings-section">

@@ -3,6 +3,7 @@ import type { ReactNode } from "react";
 
 import { getCurrentUser } from "@/auth/session";
 import { AppShell } from "@/components/app-shell";
+import { getNavigationCounts } from "@/navigation/queries";
 import { unreadNotificationCount } from "@/notifications/queries";
 
 import "./globals.css";
@@ -17,17 +18,32 @@ export const metadata: Metadata = {
 };
 
 export const viewport: Viewport = {
+  width: "device-width",
+  initialScale: 1,
+  maximumScale: 1,
+  userScalable: false,
+  viewportFit: "cover",
   themeColor: "#173f35",
 };
 
 export default async function RootLayout({ children }: Readonly<{ children: ReactNode }>) {
   const user = await getCurrentUser();
-  const unreadNotifications = user ? await unreadNotificationCount(user.id) : 0;
+  let content = children;
+  if (user) {
+    const [unreadNotifications, navigationCounts] = await Promise.all([
+      unreadNotificationCount(user.id),
+      getNavigationCounts(user),
+    ]);
+    content = (
+      <AppShell navigationCounts={navigationCounts} unreadNotifications={unreadNotifications} user={user}>
+        {children}
+      </AppShell>
+    );
+  }
+
   return (
     <html lang="pl">
-      <body>
-        {user ? <AppShell unreadNotifications={unreadNotifications} user={user}>{children}</AppShell> : children}
-      </body>
+      <body>{content}</body>
     </html>
   );
 }

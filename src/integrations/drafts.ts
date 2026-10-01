@@ -1,4 +1,5 @@
-import { and, asc, eq, inArray, or } from "drizzle-orm";
+import { and, asc, eq, inArray, or, sql } from "drizzle-orm";
+import { alias } from "drizzle-orm/pg-core";
 
 import type { AuthenticatedUser } from "@/auth/session";
 import { getDatabaseClient } from "@/db/client";
@@ -9,6 +10,7 @@ import {
   taskCommandDrafts,
   taskShares,
   tasks,
+  users,
 } from "@/db/schema";
 import { dateTimePartsInZone, zonedDateTimeToUtc } from "@/domain/reminders";
 import { listAssignableUsers, listTasksForView, type TaskView } from "@/tasks/queries";
@@ -26,6 +28,7 @@ export interface CreateTaskDraftInput {
   shareWith?: string;
   dueDate?: string;
   dueTime?: string;
+  taskScope: "PRIVATE" | "COMPANY";
   visibility: "PRIVATE" | "COMPANY" | "SHARED";
   priority: "LOW" | "NORMAL" | "HIGH" | "URGENT";
 }
@@ -113,6 +116,23 @@ export function commandAssignsAuthor(sourceText: string | undefined) {
   return /(?:^|\s)(?:żebym|abym|bym)(?:\s|$)/u.test(normalized);
 }
 
+export function resolveTaskScope(
+  sourceText: string | undefined,
+  requestedScope: "PRIVATE" | "COMPANY",
+) {
+  const normalized = (sourceText ?? "")
+    .toLocaleLowerCase("pl-PL")
+    .normalize("NFD")
+    .replace(/[\u0300-\u036f]/g, " ")
+    .replace(/[^a-z0-9]+/g, " ")
+    .trim();
+  const company = /(?:^|\s)firmow(?:e|a|y|ego|ej|emu|ym|ych)(?:\s|$)/.test(normalized);
+  const privateTask = /(?:^|\s)prywatn(?:e|a|y|ego|ej|emu|ym|ych)(?:\s|$)/.test(normalized);
+  if (company && !privateTask) return "COMPANY" as const;
+  if (privateTask && !company) return "PRIVATE" as const;
+  return requestedScope;
+}
+
 export function taskDraftExpiresAt(now = new Date()) {
   return new Date(now.getTime() + TASK_DRAFT_DURATION_MS);
 }
@@ -150,6 +170,7 @@ export async function createTaskDraft(user: AuthenticatedUser, input: CreateTask
       ? `${shareResolution.person.firstName} ${shareResolution.person.lastName}`
       : null,
     dueAt: dueAt?.toISOString() ?? null,
+    taskScope: resolveTaskScope(input.sourceText, input.taskScope),
     visibility: shareResolution.visibility,
     priority: input.priority,
     clarification,
@@ -303,9 +324,18 @@ export async function telegramTaskSummary(user: AuthenticatedUser, view: Telegra
   const now = new Date();
   const { start, end } = telegramSummaryBounds(now, user.timeZone, view);
   const { db } = getDatabaseClient();
+  const author = alias(users, "telegram_summary_author");
   const rows = await db
-    .select({ id: tasks.id, title: tasks.title, dueAt: tasks.dueAt, priority: tasks.priority })
+    .select({
+      id: tasks.id,
+      title: tasks.title,
+      dueAt: tasks.dueAt,
+      priority: tasks.priority,
+      taskScope: tasks.scope,
+      author: sql<string>`${author.firstName} || ' ' || ${author.lastName}`,
+    })
     .from(tasks)
+    .innerJoin(author, eq(tasks.authorId, author.id))
     .where(and(eq(tasks.assigneeId, user.id), inArray(tasks.status, ["OPEN", "WAITING"])))
     .orderBy(asc(tasks.dueAt), asc(tasks.createdAt));
   return rows
@@ -325,6 +355,8 @@ export async function telegramTaskOverview(user: AuthenticatedUser) {
       title: task.title,
       dueAt: task.dueAt,
       priority: task.priority,
+      taskScope: task.scope,
+      author: `${task.authorFirstName} ${task.authorLastName}`,
       assignee: `${task.assigneeFirstName} ${task.assigneeLastName}`,
     }))] as const;
   }));
@@ -333,6 +365,8 @@ export async function telegramTaskOverview(user: AuthenticatedUser) {
     title: string;
     dueAt: Date | null;
     priority: "LOW" | "NORMAL" | "HIGH" | "URGENT";
+    taskScope: "PRIVATE" | "COMPANY";
+    author: string;
     assignee: string;
   }>>;
 }
@@ -365,6 +399,7 @@ export function draftResponse(draft: typeof taskCommandDrafts.$inferSelect) {
       assignee: draft.payload.assigneeName,
       shareWith: draft.payload.sharedUserName,
       dueAt: draft.payload.dueAt,
+      taskScope: draft.payload.taskScope ?? (draft.payload.visibility === "PRIVATE" ? "PRIVATE" : "COMPANY"),
       visibility: draft.payload.visibility,
       priority: draft.payload.priority,
     },

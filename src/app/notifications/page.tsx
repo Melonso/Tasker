@@ -49,8 +49,8 @@ export default async function NotificationsPage() {
                   <time>{formatter.format(notification.createdAt)}</time>
                 </div>
                 <div className="notification-actions">
-                  {notification.taskId ? (
-                    <Link className="text-button" href={`/tasks/${notification.taskId}`}>Otwórz zadanie</Link>
+                  {notification.targetPath || notification.taskId ? (
+                    <Link className="text-button" href={notification.targetPath ?? `/tasks/${notification.taskId}`}>Otwórz</Link>
                   ) : null}
                   {!notification.readAt ? (
                     <form action={markNotificationReadAction}>

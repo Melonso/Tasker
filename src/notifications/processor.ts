@@ -1,4 +1,5 @@
-import { and, eq, inArray, sql } from "drizzle-orm";
+import { and, asc, eq, inArray, sql } from "drizzle-orm";
+import { alias } from "drizzle-orm/pg-core";
 
 import { getDatabaseClient } from "@/db/client";
 import {
@@ -7,7 +8,9 @@ import {
   notifications,
   pushSubscriptions,
   reminders,
+  taskShares,
   tasks,
+  teams,
   telegramConnections,
   users,
   workerHeartbeats,
@@ -23,6 +26,9 @@ import {
 
 const MAX_REMINDER_ATTEMPTS = 5;
 const STALE_PROCESSING_MINUTES = 5;
+const reminderAssignee = alias(users, "reminder_assignee");
+const reminderAuthor = alias(users, "reminder_author");
+const reminderSharedUser = alias(users, "reminder_shared_user");
 
 interface ClaimedReminder {
   id: string;
@@ -95,11 +101,14 @@ async function processClaimedReminder(reminder: ClaimedReminder, now: Date) {
         authorId: tasks.authorId,
         assigneeId: tasks.assigneeId,
         dueAt: tasks.dueAt,
-        assigneeTimeZone: users.timeZone,
-        assigneeOverdueHour: users.overdueReminderHour,
+        assigneeTimeZone: reminderAssignee.timeZone,
+        assigneeOverdueHour: reminderAssignee.overdueReminderHour,
+        authorFirstName: reminderAuthor.firstName,
+        authorLastName: reminderAuthor.lastName,
       })
       .from(tasks)
-      .innerJoin(users, eq(tasks.assigneeId, users.id))
+      .innerJoin(reminderAssignee, eq(tasks.assigneeId, reminderAssignee.id))
+      .innerJoin(reminderAuthor, eq(tasks.authorId, reminderAuthor.id))
       .where(eq(tasks.id, reminder.taskId))
       .limit(1);
 
@@ -119,6 +128,24 @@ async function processClaimedReminder(reminder: ClaimedReminder, now: Date) {
         .where(and(eq(reminders.id, reminder.id), eq(reminders.status, "PROCESSING")));
       return;
     }
+
+    const shareRows = await tx
+      .select({
+        userFirstName: reminderSharedUser.firstName,
+        userLastName: reminderSharedUser.lastName,
+        teamName: teams.name,
+      })
+      .from(taskShares)
+      .leftJoin(reminderSharedUser, eq(taskShares.userId, reminderSharedUser.id))
+      .leftJoin(teams, eq(taskShares.teamId, teams.id))
+      .where(eq(taskShares.taskId, task.id))
+      .orderBy(asc(reminderSharedUser.firstName), asc(reminderSharedUser.lastName), asc(teams.name));
+    const sharedWith = shareRows.flatMap((share) => {
+      if (share.userFirstName && share.userLastName) {
+        return [`${share.userFirstName} ${share.userLastName}`];
+      }
+      return share.teamName ? [`zespół ${share.teamName}`] : [];
+    });
 
     const recipientIds = reminderRecipientIds(reminder.kind, task.authorId, task.assigneeId);
     const connectedRows = await tx
@@ -156,6 +183,8 @@ async function processClaimedReminder(reminder: ClaimedReminder, now: Date) {
         taskTitle: task.title,
         dueAt: task.dueAt,
         timeZone: task.assigneeTimeZone,
+        authorName: `${task.authorFirstName} ${task.authorLastName}`,
+        sharedWith,
       });
       const [notification] = await tx
         .insert(notifications)

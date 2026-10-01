@@ -36,6 +36,7 @@ export async function confirmClaimedTaskDraft(
       title: payload.title,
       description: payload.description,
       assigneeId: payload.assigneeId,
+      scope: payload.taskScope ?? (payload.visibility === "PRIVATE" ? "PRIVATE" : "COMPANY"),
       visibility: payload.visibility,
       priority: payload.priority,
       dueAt: payload.dueAt ? new Date(payload.dueAt) : null,

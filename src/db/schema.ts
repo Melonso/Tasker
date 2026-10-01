@@ -36,6 +36,7 @@ export const taskVisibilityEnum = pgEnum("task_visibility", [
   "COMPANY",
   "SHARED",
 ]);
+export const taskScopeEnum = pgEnum("task_scope", ["PRIVATE", "COMPANY"]);
 export const taskPriorityEnum = pgEnum("task_priority", ["LOW", "NORMAL", "HIGH", "URGENT"]);
 export const reminderKindEnum = pgEnum("reminder_kind", [
   "SEVEN_DAYS_BEFORE",
@@ -74,6 +75,15 @@ export const commandDraftStatusEnum = pgEnum("command_draft_status", [
   "CANCELED",
   "EXPIRED",
 ]);
+export const noteColorEnum = pgEnum("note_color", [
+  "NEUTRAL",
+  "YELLOW",
+  "GREEN",
+  "BLUE",
+  "PINK",
+  "PURPLE",
+]);
+export const noteReminderFrequencyEnum = pgEnum("note_reminder_frequency", ["DAILY", "WEEKLY"]);
 
 export const users = pgTable(
   "users",
@@ -152,6 +162,7 @@ export const tasks = pgTable(
       .notNull()
       .references(() => users.id),
     status: taskStatusEnum("status").default("OPEN").notNull(),
+    scope: taskScopeEnum("scope").default("PRIVATE").notNull(),
     visibility: taskVisibilityEnum("visibility").default("PRIVATE").notNull(),
     priority: taskPriorityEnum("priority").default("NORMAL").notNull(),
     dueAt: timestamp("due_at", { withTimezone: true }),
@@ -167,6 +178,7 @@ export const tasks = pgTable(
     index("tasks_author_status_idx").on(table.authorId, table.status),
     index("tasks_due_at_idx").on(table.dueAt),
     index("tasks_assignee_planned_date_idx").on(table.assigneeId, table.plannedForDate),
+    index("tasks_scope_status_idx").on(table.scope, table.status),
   ],
 );
 
@@ -185,6 +197,44 @@ export const taskShares = pgTable(
     index("task_shares_task_idx").on(table.taskId),
     uniqueIndex("task_shares_task_user_unique").on(table.taskId, table.userId),
     uniqueIndex("task_shares_task_team_unique").on(table.taskId, table.teamId),
+  ],
+);
+
+export const notes = pgTable(
+  "notes",
+  {
+    id: uuid("id").defaultRandom().primaryKey(),
+    userId: uuid("user_id")
+      .notNull()
+      .references(() => users.id, { onDelete: "cascade" }),
+    title: varchar("title", { length: 160 }).notNull(),
+    body: text("body").notNull(),
+    color: noteColorEnum("color").default("NEUTRAL").notNull(),
+    sourceEventId: varchar("source_event_id", { length: 200 }).unique(),
+    ...timestamps,
+  },
+  (table) => [index("notes_user_updated_idx").on(table.userId, table.updatedAt)],
+);
+
+export const noteReminderSchedules = pgTable(
+  "note_reminder_schedules",
+  {
+    id: uuid("id").defaultRandom().primaryKey(),
+    userId: uuid("user_id")
+      .notNull()
+      .references(() => users.id, { onDelete: "cascade" }),
+    frequency: noteReminderFrequencyEnum("frequency").notNull(),
+    weekday: integer("weekday"),
+    hour: integer("hour").notNull(),
+    minute: integer("minute").notNull(),
+    enabled: boolean("enabled").default(true).notNull(),
+    nextReminderAt: timestamp("next_reminder_at", { withTimezone: true }).notNull(),
+    lastSentAt: timestamp("last_sent_at", { withTimezone: true }),
+    ...timestamps,
+  },
+  (table) => [
+    index("note_reminder_schedules_due_idx").on(table.enabled, table.nextReminderAt),
+    index("note_reminder_schedules_user_idx").on(table.userId),
   ],
 );
 
@@ -263,6 +313,7 @@ export const notifications = pgTable(
       .notNull()
       .references(() => users.id, { onDelete: "cascade" }),
     taskId: uuid("task_id").references(() => tasks.id, { onDelete: "cascade" }),
+    targetPath: varchar("target_path", { length: 500 }),
     title: varchar("title", { length: 300 }).notNull(),
     body: text("body").notNull(),
     readAt: timestamp("read_at", { withTimezone: true }),
@@ -388,6 +439,7 @@ export interface CreateTaskDraftPayload {
   sharedUserId: string | null;
   sharedUserName: string | null;
   dueAt: string | null;
+  taskScope: "PRIVATE" | "COMPANY";
   visibility: "PRIVATE" | "COMPANY" | "SHARED";
   priority: "LOW" | "NORMAL" | "HIGH" | "URGENT";
   clarification: string | null;

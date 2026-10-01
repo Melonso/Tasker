@@ -41,6 +41,16 @@ Data bazowa ustaleń: 2026-08-28. Strefa czasowa pierwszego wdrożenia: `Europe/
 35. Wiadomości głosowe Telegrama są pobierane przez n8n, transkrybowane jako polska mowa przez OpenAI i dalej obsługiwane tą samą ścieżką szkicu co polecenia tekstowe. Tasker nie przechowuje oryginalnego nagrania ani transkrypcji.
 36. Polecenie „dodaj osobę do zadania” oznacza bezpośrednie udostępnienie bez zmiany wykonawcy, natomiast „przekaż/przypisz zadanie osobie” zmienia jedynego głównego wykonawcę. Obie operacje może zatwierdzić wyłącznie autor zadania i żadna nie podlega automatycznemu zatwierdzeniu.
 37. Polecenie tworzące nowe zadanie może równocześnie wskazać jedną osobę w `shareWith`. Wykonawca i odbiorca udostępnienia są odrębnymi rolami, a utworzenie zadania oraz bezpośredniego udostępnienia odbywa się atomowo. Widoczność `SHARED` bez odbiorcy wymaga doprecyzowania i nie może zostać automatycznie zatwierdzona.
+38. Notatki są prywatnym modułem właściciela niezależnym od zadań. Nie mają wykonawcy, terminu zadania, udostępnień ani synchronizacji kalendarza; użytkownik może nadać im jeden z sześciu kolorów.
+39. Polecenia `/notatka TREŚĆ`, „dodaj do notatek…” i „zapisz w notatkach…” zapisują notatkę natychmiast oraz idempotentnie, bez tworzenia szkicu zadania.
+40. Użytkownik może posiadać kilka włączanych niezależnie dziennych lub tygodniowych przypomnień o uporządkowaniu notatek. Każde ma własną lokalną godzinę, a tygodniowe również dzień tygodnia; dostawa korzysta z istniejących preferencji kanałów i prowadzi do `/notes`.
+41. `/dodaj` jest jedyną pełną instrukcją tworzenia zadania przez Telegram i opisuje osobno wykonawcę oraz odbiorcę udostępnienia. `/pomoc` nie powiela tworzenia; służy jako przegląd skrótów, notatek, ustawień i operacji na istniejących zadaniach.
+42. Webowy moduł Notatek używa zwartej tabeli zamiast siatki kart. Formularz tworzenia jest domyślnie schowany pod przyciskiem w nagłówku, kliknięcie wiersza uruchamia edycję tytułu, treści i koloru w miejscu, a usunięcie wymaga potwierdzenia.
+43. Nowy wykonawca i nowa osoba wskazana w bezpośrednim udostępnieniu otrzymują natychmiastowy wpis w centrum powiadomień oraz dostawę Web Push/Telegram, jeśli dany kanał jest połączony i włączony. Autor nie otrzymuje alertu, gdy przypisuje zadanie samemu sobie.
+44. Nawigacja pokazuje w nawiasach liczbę elementów każdego widoku zadań oraz prywatnych notatek, także gdy wynosi ona zero. Liczby są wyliczane z tych samych filtrów dostępu, statusu, terminu i cykliczności co listy docelowe; na urządzeniach mobilnych są widoczne w głównych skrótach i menu `Więcej`.
+45. Jawne udostępnienie bez zmiany wykonawcy włącza zadanie do widoków `Dzisiaj` i `Bieżące` odbiorcy na równi z przypisaniem. Na liście zadania otrzymanego przez przypisanie lub udostępnienie prezentowany jest autor z awatarem. Odbiorca samego udostępnienia ma dostęp do szczegółów i komentarzy, ale nie otrzymuje akcji zakończenia, przesuwania terminu ani planowania zadania jak wykonawca.
+46. Rodzaj zadania `PRIVATE`/`COMPANY` jest odrębną osią od widoczności `PRIVATE`/`COMPANY`/`SHARED`. Każdy widok webowy pokazuje pionowo najpierw sekcję firmową, potem prywatną. Telegram rozpoznaje jawne zwroty „zadanie firmowe” i „zadanie prywatne”; brak rodzaju oznacza prywatne. `/zadania` zachowuje kategorie statusów wewnątrz obu rodzajów i podaje autora każdego zadania.
+47. Do zespołu dołącza Paulina Grzankowska z rolą `COMPANY_MEMBER` (`paulina.grzankowska@dpkomis.pl`). Posiada standardowy dostęp użytkownika firmowego do spraw własnych, firmowych i bezpośrednio udostępnionych.
 
 ## Użytkownicy pilotażowi i role
 
@@ -49,6 +59,7 @@ Data bazowa ustaleń: 2026-08-28. Strefa czasowa pierwszego wdrożenia: `Europe/
 | Paweł Kurek | właściciel biznesowy | sprawy firmowe, zespoły, delegowanie i kontrola realizacji |
 | Mateusz Meloch | administrator aplikacji + użytkownik firmowy | konfiguracja techniczna, użytkownicy, integracje, diagnostyka oraz zwykła praca z zadaniami |
 | Michał Murawski | użytkownik firmowy | własne, firmowe i udostępnione zadania |
+| Paulina Grzankowska | użytkownik firmowy | własne, firmowe i udostępnione zadania |
 | Nadia Kamieniecka-Nowak | użytkownik zewnętrzny | wyłącznie własne zadania i sprawy udostępnione bezpośrednio lub przez przypisaną grupę |
 
 ## Przyjęte założenia wymagające walidacji w pilotażu

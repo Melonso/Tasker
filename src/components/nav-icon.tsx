@@ -1,6 +1,7 @@
 export type NavIconName =
   | "home"
   | "tasks"
+  | "notes"
   | "waiting"
   | "delegated"
   | "repeat"
@@ -30,6 +31,8 @@ export function NavIcon({ name, size = 19 }: { name: NavIconName; size?: number 
       return <svg {...common}><path d="M3.5 10.5 12 3l8.5 7.5" /><path d="M5.5 9.5V21h13V9.5M9.5 21v-6h5v6" /></svg>;
     case "tasks":
       return <svg {...common}><path d="M9 6h11M9 12h11M9 18h11" /><path d="m3.5 6 1.2 1.2L7 4.8M3.5 12l1.2 1.2L7 10.8M3.5 18l1.2 1.2L7 16.8" /></svg>;
+    case "notes":
+      return <svg {...common}><path d="M5 3.5h11.5L20 7v13.5H5z" /><path d="M16.5 3.5V7H20M8.5 11h7M8.5 15h7" /></svg>;
     case "waiting":
       return <svg {...common}><circle cx="12" cy="12" r="9" /><path d="M12 7v5l3 2" /></svg>;
     case "delegated":

@@ -3,6 +3,7 @@ import { and, eq, inArray, sql } from "drizzle-orm";
 import { getDatabaseClient } from "@/db/client";
 import { notificationDeliveries } from "@/db/schema";
 import { getServerEnv } from "@/lib/env";
+import { notificationTargetUrl } from "@/notifications/target";
 
 const MAX_DELIVERY_ATTEMPTS = 5;
 
@@ -12,6 +13,7 @@ export interface ClaimedTelegramDelivery {
   chatId: string;
   text: string;
   taskUrl: string | null;
+  targetUrl: string | null;
   attempt: number;
 }
 
@@ -35,6 +37,7 @@ export async function claimTelegramDeliveries(limit: number) {
         delivery.notification_id,
         delivery.attempt_count,
         notification.task_id,
+        notification.target_path,
         notification.title,
         notification.body,
         connection.chat_id
@@ -73,12 +76,15 @@ export async function claimTelegramDeliveries(limit: number) {
   return rows.map((row) => {
     const taskId = row.task_id ? String(row.task_id) : null;
     const taskUrl = taskId ? `${baseUrl}/tasks/${taskId}` : null;
+    const targetPath = row.target_path ? String(row.target_path) : null;
+    const targetUrl = notificationTargetUrl({ baseUrl, targetPath, taskId, fallbackPath: null });
     return {
       deliveryId: String(row.delivery_id),
       notificationId: String(row.notification_id),
       chatId: String(row.chat_id),
-      text: `🔔 ${String(row.title)}\n\n${String(row.body)}${taskUrl ? `\n\n${taskUrl}` : ""}`,
+      text: `🔔 ${String(row.title)}\n\n${String(row.body)}${targetUrl ? `\n\n${targetUrl}` : ""}`,
       taskUrl,
+      targetUrl,
       attempt: Number(row.attempt_count) + 1,
     } satisfies ClaimedTelegramDelivery;
   });

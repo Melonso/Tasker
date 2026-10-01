@@ -3,14 +3,15 @@
 ## Status realizacji
 
 - **Etap 0 – zakończony.** Pełny stos Docker z PostgreSQL, migracją, webem i workerem został uruchomiony oraz sprawdzony na serwerze 2026-08-28.
-- **Etap 1 – gotowy dla MVP.** Działają hasła, sesje, jednorazowa aktywacja, role, profile, avatary, zespoły, jawne udostępnienia i ochrona prywatności.
-- **Etap 2 – gotowy dla MVP.** Działają widoki, tworzenie, delegowanie, zadania cykliczne, szczegóły, komentarze, oczekiwanie, wznowienie, zakończenie, anulowanie i przesuwanie terminu.
-- **Etap 3 – gotowy.** Harmonogram przypomnień, eskalacje, centrum powiadomień, trwały worker, deduplikacja i diagnostyka działają produkcyjnie.
+- **Etap 1 – gotowy dla MVP.** Działają hasła, sesje, jednorazowa aktywacja, role, profile, avatary, zespoły, jawne udostępnienia i ochrona prywatności. Do zespołu dołączyła Paulina Grzankowska (`COMPANY_MEMBER`).
+- **Etap 2 – gotowy dla MVP.** Działają widoki, tworzenie, delegowanie, zadania cykliczne, szczegóły, komentarze, oczekiwanie, wznowienie, zakończenie, anulowanie i przesuwanie terminu. Każdy widok webowy ma osobne pionowe sekcje firmowe i prywatne, a rodzaj zadania jest niezależny od widoczności. Odbiorca widzi w `Dzisiaj` i `Bieżących` zarówno zadania przypisane, jak i jawnie udostępnione; otrzymany wiersz identyfikuje autora imieniem, nazwiskiem i awatarem.
+- **Etap 3 – gotowy.** Harmonogram przypomnień, eskalacje, centrum powiadomień, trwały worker, deduplikacja i diagnostyka działają produkcyjnie. Treść każdego nowego przypomnienia pokazuje autora zadania oraz osoby i zespoły, którym zadanie udostępniono. Nowy wykonawca i nowa bezpośrednio udostępniona osoba otrzymują też natychmiastowe powiadomienie o uzyskaniu dostępu.
 - **Etap 4 – gotowy.** PWA, wielourządzeniowy Web Push i test z ustawień zostały wdrożone i sprawdzone.
 - **Etap 5 – podstawowy obieg gotowy.** OAuth, primary calendar, tworzenie, aktualizacja, zakończenie i odłączenie działają; wybór innego kalendarza pozostaje do wykonania.
-- **Etapy 6–7 – gotowe dla MVP.** Telegram przyjmuje tekst i głos transkrybowany przez OpenAI, tworzy bezpieczne szkice, kończy i przesuwa zadania, inteligentnie dopasowuje zapamiętany fragment aktywnego tytułu, pokazuje listy na dziś, jutro, po terminie i według kategorii oraz wysyła alerty zgodnie z preferencjami.
+- **Etapy 6–7 – gotowe dla MVP.** Telegram przyjmuje tekst i głos transkrybowany przez OpenAI, tworzy bezpieczne szkice, deterministycznie rozróżnia polecenia dodania zadania firmowego i prywatnego, kończy i przesuwa zadania, inteligentnie dopasowuje zapamiętany fragment aktywnego tytułu, pokazuje listy na dziś, jutro, po terminie i według kategorii oraz wysyła alerty zgodnie z preferencjami. `/zadania` dzieli wynik na firmowe i prywatne oraz podaje autora każdego zadania. `/dodaj` zawiera pełną instrukcję tworzenia z rodzajem, wykonawcą i udostępnieniem, natomiast `/pomoc` pozostaje przeglądem pozostałych możliwości.
 - **Etap 8 – pilotaż aktywny.** Działają lokalne automatyczne backupy, szyfrowana kopia w Google Drive przez n8n, sprawdzona pełna próba odtworzenia offsite, automatyczna retencja 14 zestawów dziennych + 8 tygodniowych, zewnętrzny monitoring i metryki pilotażu uruchomionego 2026-08-29 dla czterech użytkowników.
-- **Etap 9 – pierwsza iteracja UX wdrożona.** Audyt znajduje się w `docs/UX_RESEARCH_2026-08-29.md`. Zrealizowano zadaniowy ekran „Dzisiaj”, osobiste przypinanie do planu, stale widoczne statystyki pod listą, skanowalną listę, uproszczone dodawanie, szybkie przesuwanie terminu i mobilną nawigację z centralnym `+`.
+- **Etap 9 – pierwsza iteracja UX wdrożona.** Audyt znajduje się w `docs/UX_RESEARCH_2026-08-29.md`. Zrealizowano zadaniowy ekran „Dzisiaj”, osobiste przypinanie do planu, stale widoczne statystyki pod listą, skanowalną listę, uproszczone dodawanie, szybkie przesuwanie terminu, mobilną nawigację z centralnym `+`, liczniki zawartości przy wszystkich pozycjach zadań i notatek, stabilny mobilny układ wierszy z awatarem autora, wycentrowane badge'e liczników sekcji oraz poprawne dopasowanie viewportu i pól formularzy na iPhone'ach bez automatycznego zoomu Safari. Poprawiono nakładanie popovera opcji zadania (`•••`), usuwając przycinanie kontenera ekranu „Dzisiaj” (`overflow: visible`) i podnosząc warstwę otwartego menu ponad podsumowanie. Dodano bezpośrednie pole edycji rodzaju wpisu (Firmowy / Prywatny) w wierszach listy zadań dla autora, umożliwiające natychmiastową zmianę bez otwierania menu `•••`.
+- **Etap 10 – Notatki wdrożone.** Działa odrębny od zadań prywatny moduł notatek z tytułem, treścią, sześcioma kolorami, edycją i usuwaniem. Web pokazuje kompaktową tabelę; przycisk u góry rozwija formularz, a kliknięcie wiersza przełącza go w edycję bez osobnego okna. Telegram zapisuje notatkę natychmiast przez `/notatka TREŚĆ` oraz naturalne zwroty „dodaj do notatek…” i „zapisz w notatkach…”. Użytkownik może skonfigurować kilka dziennych lub tygodniowych przypomnień porządkowych z własną godziną.
 
 ## 1. Rekomendowana architektura
 
@@ -73,7 +74,7 @@ Warunek zakończenia: nowa instalacja uruchamia aplikację i bazę jedną udokum
 Zakres:
 
 - logowanie oraz aktywacja kont z zaproszeń,
-- utworzenie czterech użytkowników pilotażowych,
+- utworzenie użytkowników zespołu (Paweł, Mateusz, Michał, Nadia, Paulina),
 - role: właściciel biznesowy, administrator aplikacji, członek firmy i użytkownik zewnętrzny,
 - profil i podstawowe ustawienia użytkownika,
 - zespoły i jawne udostępnienia,
@@ -88,6 +89,9 @@ Zakres:
 - tworzenie, edycja, zakończenie i anulowanie zadania,
 - delegowanie jednej osobie,
 - widoki Bieżące, Oczekujące, Delegowane, Cykliczne i Zrobione,
+- niezależny od widoczności rodzaj `PRIVATE`/`COMPANY` i pionowy podział każdego widoku na obie sekcje,
+- automatyczny zapis typu po wyborze przez autora oraz priorytetu po wyborze przez autora lub wykonawcę w szczegółach i menu wiersza, bez osobnego przycisku potwierdzenia,
+- plakietki czterech priorytetów i sortowanie `URGENT` → `HIGH` → `NORMAL` → `LOW` przed terminem wewnątrz każdej sekcji,
 - ekran Dzisiaj,
 - osobisty plan dnia oraz hierarchię „Po terminie” → „Plan na dziś” → „Termin na dziś”,
 - przesuwanie terminu,
@@ -106,6 +110,7 @@ Zakres:
 - codzienna eskalacja o 9:00 po terminie,
 - anulowanie i przeliczanie harmonogramu przy zmianie terminu,
 - centrum powiadomień,
+- natychmiastowe zdarzenie dla nowego wykonawcy i każdej nowej osoby wskazanej w bezpośrednim udostępnieniu,
 - worker, ponowienia i deduplikacja,
 - wskaźniki kondycji kolejki w panelu administratora.
 
@@ -147,6 +152,7 @@ Zakres:
 - atomowe tworzenie nowego zadania i bezpośrednie udostępnianie go wskazanej osobie w jednym szkicu Telegrama,
 - bezpieczne dopasowanie częściowego tytułu do aktywnych zadań autora lub wykonawcy, z doprecyzowaniem przy podobnych wynikach,
 - deterministyczne skróty `/dzisiaj`, `/jutro`, `/zalegle` i `/zadania` oraz odpowiadające im naturalne prośby tekstowe i głosowe, które omijają model językowy,
+- deterministyczny skrót `/dodaj` z aktualną instrukcją wykonawcy, odrębnego odbiorcy udostępnienia, terminu, priorytetu, widoczności i zatwierdzania; `/pomoc` odsyła do niego i nie duplikuje tej instrukcji,
 - podgląd przed zapisem z przyciskami Zapisz/Popraw/Anuluj,
 - alerty Telegram zgodne z preferencjami,
 - ograniczanie liczby żądań i ochrona webhooka.
@@ -179,6 +185,20 @@ Zakres:
 - poprawki wynikające z pilotażu.
 
 Warunek zakończenia: spełnione są kryteria sukcesu ze specyfikacji MVP, a kopia zapasowa została faktycznie odtworzona w środowisku testowym.
+
+### Etap 10 – Notatki
+
+Zakres:
+
+- prywatne notatki przechowywane niezależnie od zadań,
+- osobny ekran z tabelą, tytułem, treścią i sześcioma oznaczeniami kolorystycznymi; tworzenie jest rozwijane przyciskiem u góry, a edycja odbywa się bezpośrednio w wybranym wierszu,
+- tworzenie, edycja i usuwanie wyłącznie przez właściciela,
+- idempotentny zapis z Telegrama przez `/notatka TREŚĆ` i deterministyczne naturalne zwroty,
+- wiele dziennych lub tygodniowych harmonogramów z wyborem dnia tygodnia i godziny,
+- dostawa przypomnienia do centrum powiadomień oraz, zgodnie z połączeniami i preferencjami, przez Web Push i Telegram,
+- wspólny link powiadomienia prowadzący bezpośrednio do `/notes`.
+
+Warunek zakończenia: notatka utworzona w panelu albo przez Telegram pojawia się wyłącznie u właściciela, harmonogram po wysyłce wylicza kolejny termin bez duplikatu, a wszystkie obsługiwane kanały prowadzą do modułu Notatki.
 
 ## 4. Kolejność zależności
 
@@ -213,6 +233,9 @@ Google, Web Push i Telegram mogą być rozwijane równolegle dopiero po ustabili
 10. Odłączenie Google nie usuwa zadania i nie zatrzymuje powiadomień Taskera.
 11. Wygasły token Google uruchamia ponowienie i pokazuje użytkownikowi czytelny stan połączenia.
 12. Nieznana osoba w poleceniu głosowym wymusza doprecyzowanie zamiast przypadkowego delegowania.
+13. Ponowienie tej samej aktualizacji Telegrama nie tworzy drugiej notatki.
+14. Dzienny i tygodniowy harmonogram notatek prawidłowo przechodzą przez zmianę daty oraz zachowują wybraną lokalną godzinę.
+15. Utworzenie lub przekazanie zadania innej osobie oraz nowe bezpośrednie udostępnienie tworzą jeden komunikat w aplikacji i tylko dostępne, włączone dostawy Web Push/Telegram; autor nie dostaje alertu o przypisaniu zadania samemu sobie.
 
 ## 6. Ryzyka i zabezpieczenia
 

@@ -27,6 +27,7 @@ const requestSchema = z.discriminatedUnion("intent", [z.object({
   shareWith: z.string().trim().max(320).optional(),
   dueDate: date.optional(),
   dueTime: time.optional(),
+  taskScope: z.enum(["PRIVATE", "COMPANY"]).default("PRIVATE"),
   visibility: z.enum(["PRIVATE", "COMPANY", "SHARED"]).default("PRIVATE"),
   priority: z.enum(["LOW", "NORMAL", "HIGH", "URGENT"]).default("NORMAL"),
 }), z.object({

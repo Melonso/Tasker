@@ -33,8 +33,29 @@ describe("reminder content and freshness", () => {
         taskTitle: "Oddzwonić",
         dueAt,
         timeZone: "Europe/Warsaw",
+        authorName: "Nadia Kowalska",
+        sharedWith: [],
       }),
-    ).toEqual({ title: "Termin za godzinę", body: "Oddzwonić · termin 01.09.2026, 15:00" });
+    ).toEqual({
+      title: "Termin za godzinę",
+      body: "Oddzwonić · termin 01.09.2026, 15:00\nAutor: Nadia Kowalska",
+    });
+  });
+
+  it("adds directly shared people and teams to the notification", () => {
+    expect(
+      reminderContent({
+        kind: "OVERDUE_DAILY",
+        taskTitle: "Oddzwonić",
+        dueAt,
+        timeZone: "Europe/Warsaw",
+        authorName: "Nadia Kowalska",
+        sharedWith: ["Michał Murawski", "zespół Sprzedaż"],
+      }),
+    ).toEqual({
+      title: "Zadanie po terminie",
+      body: "Oddzwonić · termin 01.09.2026, 15:00\nAutor: Nadia Kowalska\nUdostępnione: Michał Murawski, zespół Sprzedaż",
+    });
   });
 
   it("rejects a pre-due reminder left from an old deadline", () => {

@@ -4,6 +4,7 @@ import {
   commandAssignsAuthor,
   matchAssignablePerson,
   resolveCreateTaskShare,
+  resolveTaskScope,
   TASK_DRAFT_DURATION_MS,
   taskDraftExpiresAt,
   telegramSummaryBounds,
@@ -28,19 +29,34 @@ describe("Telegram assignment language", () => {
   });
 });
 
+describe("Telegram task scope language", () => {
+  it("recognizes explicit company and private task phrases deterministically", () => {
+    expect(resolveTaskScope("Dodaj zadanie firmowe przygotować ofertę", "PRIVATE")).toBe("COMPANY");
+    expect(resolveTaskScope("Dodaj prywatne zadanie kupić prezent", "COMPANY")).toBe("PRIVATE");
+  });
+
+  it("keeps the parsed default when no scope was stated", () => {
+    expect(resolveTaskScope("Dodaj zadanie oddzwonić jutro", "PRIVATE")).toBe("PRIVATE");
+  });
+});
+
 describe("Telegram person matching", () => {
   const people = [
     { id: "michal", firstName: "Michał", lastName: "Murawski", email: "michal@example.com" },
     { id: "mateusz", firstName: "Mateusz", lastName: "Meloch", email: "mateusz@example.com" },
+    { id: "paulina", firstName: "Paulina", lastName: "Grzankowska", email: "paulina.grzankowska@dpkomis.pl" },
   ];
 
   it("matches a unique first name for sharing or reassignment", () => {
     expect(matchAssignablePerson(people, "Michał").person?.id).toBe("michal");
+    expect(matchAssignablePerson(people, "Paulina").person?.id).toBe("paulina");
   });
 
   it("matches a full name and email", () => {
     expect(matchAssignablePerson(people, "Michał Murawski").person?.id).toBe("michal");
+    expect(matchAssignablePerson(people, "Paulina Grzankowska").person?.id).toBe("paulina");
     expect(matchAssignablePerson(people, "mateusz@example.com").person?.id).toBe("mateusz");
+    expect(matchAssignablePerson(people, "paulina.grzankowska@dpkomis.pl").person?.id).toBe("paulina");
   });
 
   it("requires clarification when the person is unknown", () => {

@@ -18,6 +18,12 @@ export const pilotUsers = [
     roles: ["COMPANY_MEMBER"] as const,
   },
   {
+    email: "paulina.grzankowska@dpkomis.pl",
+    firstName: "Paulina",
+    lastName: "Grzankowska",
+    roles: ["COMPANY_MEMBER"] as const,
+  },
+  {
     email: "nadia.kamieniecka-nowak@dpkomis.pl",
     firstName: "Nadia",
     lastName: "Kamieniecka-Nowak",

@@ -16,6 +16,7 @@ import {
 } from "@/db/schema";
 import { buildReminderSchedule, zonedDateTimeToUtc } from "@/domain/reminders";
 import { nextRecurringDueAt, type RecurrenceRule } from "@/domain/recurrence";
+import { queueTaskAccessNotifications } from "@/notifications/task-access";
 
 import { isCompanyUser } from "./policy";
 
@@ -23,6 +24,7 @@ export interface CreateTaskInput {
   title: string;
   description?: string | null;
   assigneeId: string;
+  scope: "PRIVATE" | "COMPANY";
   visibility: "PRIVATE" | "COMPANY" | "SHARED";
   priority: "LOW" | "NORMAL" | "HIGH" | "URGENT";
   dueAt: Date | null;
@@ -118,6 +120,7 @@ export async function createTaskForUser(user: AuthenticatedUser, input: CreateTa
         description: input.description || null,
         authorId: user.id,
         assigneeId: assignee.id,
+        scope: input.scope,
         visibility: input.visibility,
         priority: input.priority,
         dueAt: input.dueAt,
@@ -164,10 +167,21 @@ export async function createTaskForUser(user: AuthenticatedUser, input: CreateTa
         assigneeId: assignee.id,
         dueAt: input.dueAt?.toISOString() ?? null,
         source: input.source ?? "WEB",
+        scope: input.scope,
         recurrence: input.recurrenceRule ?? null,
         sharedUsers: shareUserIds.length,
         sharedTeams: shareTeamIds.length,
       },
+    });
+    await queueTaskAccessNotifications(tx, {
+      taskId: task.id,
+      taskTitle: input.title,
+      actorName: `${user.firstName} ${user.lastName}`,
+      eventKey: `task-created:${task.id}`,
+      recipients: [
+        ...(assignee.id !== user.id ? [{ userId: assignee.id, kind: "ASSIGNED" as const }] : []),
+        ...shareUserIds.map((userId) => ({ userId, kind: "SHARED" as const })),
+      ],
     });
     return task.id;
   });
@@ -226,6 +240,7 @@ export async function completeTaskForUser(user: AuthenticatedUser, taskId: strin
           description: task.description,
           authorId: task.authorId,
           assigneeId: task.assigneeId,
+          scope: task.scope,
           visibility: task.visibility,
           priority: task.priority,
           dueAt: nextDueAt,
@@ -361,19 +376,28 @@ export async function shareTaskWithUser(
 
   await db.transaction(async (tx) => {
     const now = new Date();
+    const [insertedShare] = await tx
+      .insert(taskShares)
+      .values({ taskId: task.id, userId: targetUser.id })
+      .onConflictDoNothing({ target: [taskShares.taskId, taskShares.userId] })
+      .returning({ id: taskShares.id });
+    if (!insertedShare) throw new TaskInputError("Wybrana osoba ma już dostęp do zadania.");
     await tx
       .update(tasks)
       .set({ visibility: "SHARED", updatedAt: now, version: task.version + 1 })
       .where(eq(tasks.id, task.id));
-    await tx
-      .insert(taskShares)
-      .values({ taskId: task.id, userId: targetUser.id })
-      .onConflictDoNothing({ target: [taskShares.taskId, taskShares.userId] });
     await tx.insert(auditEvents).values({
       actorId: user.id,
       taskId: task.id,
       action: "TASK_SHARED_WITH_USER",
       metadata: { targetUserId: targetUser.id, previousVisibility: task.visibility },
+    });
+    await queueTaskAccessNotifications(tx, {
+      taskId: task.id,
+      taskTitle: task.title,
+      actorName: `${user.firstName} ${user.lastName}`,
+      eventKey: `task-shared:${task.id}:${task.version + 1}`,
+      recipients: [{ userId: targetUser.id, kind: "SHARED" }],
     });
   });
   return task.id;
@@ -470,6 +494,13 @@ export async function reassignTaskForUser(
         previousVisibility: task.visibility,
         newVisibility: nextVisibility,
       },
+    });
+    await queueTaskAccessNotifications(tx, {
+      taskId: task.id,
+      taskTitle: task.title,
+      actorName: `${user.firstName} ${user.lastName}`,
+      eventKey: `task-reassigned:${task.id}:${task.version + 1}`,
+      recipients: targetAssignee.id === user.id ? [] : [{ userId: targetAssignee.id, kind: "ASSIGNED" }],
     });
   });
   return task.id;

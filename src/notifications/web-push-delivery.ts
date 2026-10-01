@@ -4,6 +4,7 @@ import webPush from "web-push";
 import { getDatabaseClient } from "@/db/client";
 import { notificationDeliveries, notifications, pushSubscriptions } from "@/db/schema";
 import { getServerEnv } from "@/lib/env";
+import { notificationTargetUrl } from "@/notifications/target";
 
 const MAX_DELIVERY_ATTEMPTS = 5;
 
@@ -115,13 +116,15 @@ async function sendPushDelivery(delivery: ClaimedPushDelivery) {
     return "skipped" as const;
   }
 
-  const taskUrl = notification.taskId
-    ? `${env.APP_BASE_URL.replace(/\/$/, "")}/tasks/${notification.taskId}`
-    : `${env.APP_BASE_URL.replace(/\/$/, "")}/notifications`;
+  const targetUrl = notificationTargetUrl({
+    baseUrl: env.APP_BASE_URL,
+    targetPath: notification.targetPath,
+    taskId: notification.taskId,
+  });
   const payload = JSON.stringify({
     title: notification.title,
     body: notification.body,
-    url: taskUrl,
+    url: targetUrl,
     tag: `tasker-notification-${notification.id}`,
   });
   let sent = 0;

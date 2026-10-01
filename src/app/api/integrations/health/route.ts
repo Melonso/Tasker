@@ -8,10 +8,11 @@ export async function GET(request: Request) {
   }
   return NextResponse.json({
     status: "ready",
-    contractVersion: 4,
+    contractVersion: 6,
     capabilities: [
       "TELEGRAM_LINK",
       "CREATE_TASK_DRAFT",
+      "TASK_SCOPE_PRIVATE_COMPANY",
       "CREATE_SHARED_TASK_DRAFT",
       "CONFIRM_TASK_DRAFT",
       "CANCEL_TASK_DRAFT",
@@ -23,6 +24,7 @@ export async function GET(request: Request) {
       "LIST_TASKS_BY_CATEGORY",
       "CLAIM_TELEGRAM_NOTIFICATIONS",
       "REPORT_TELEGRAM_NOTIFICATION_RESULT",
+      "CREATE_NOTE",
     ],
   });
 }

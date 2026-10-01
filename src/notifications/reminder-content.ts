@@ -21,11 +21,15 @@ export function reminderContent({
   taskTitle,
   dueAt,
   timeZone,
+  authorName,
+  sharedWith,
 }: {
   kind: ReminderKind;
   taskTitle: string;
   dueAt: Date;
   timeZone: string;
+  authorName: string;
+  sharedWith: readonly string[];
 }) {
   const dueLabel = new Intl.DateTimeFormat("pl-PL", {
     timeZone,
@@ -36,7 +40,11 @@ export function reminderContent({
     minute: "2-digit",
   }).format(dueAt);
   const title = reminderLead[kind];
-  const body = `${taskTitle} · termin ${dueLabel}`;
+  const body = [
+    `${taskTitle} · termin ${dueLabel}`,
+    `Autor: ${authorName}`,
+    ...(sharedWith.length ? [`Udostępnione: ${sharedWith.join(", ")}`] : []),
+  ].join("\n");
   return { title, body };
 }
 

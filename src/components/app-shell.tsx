@@ -8,24 +8,28 @@ import { logoutAction } from "@/auth/actions";
 import type { AuthenticatedUser } from "@/auth/session";
 import { UserAvatar } from "@/components/user-avatar";
 import { NavIcon, type NavIconName } from "@/components/nav-icon";
+import type { NavigationCounts } from "@/navigation/queries";
 
-const navigation: Array<{ href: string; label: string; icon: NavIconName }> = [
-  { href: "/", label: "Dzisiaj", icon: "home" },
-  { href: "/?view=current", label: "Bieżące", icon: "tasks" },
-  { href: "/?view=waiting", label: "Oczekujące", icon: "waiting" },
-  { href: "/?view=delegated", label: "Delegowane", icon: "delegated" },
-  { href: "/?view=recurring", label: "Cykliczne", icon: "repeat" },
-  { href: "/?view=done", label: "Zrobione", icon: "done" },
+const navigation: Array<{ href: string; label: string; icon: NavIconName; countKey: keyof NavigationCounts }> = [
+  { href: "/", label: "Dzisiaj", icon: "home", countKey: "today" },
+  { href: "/notes", label: "Notatki", icon: "notes", countKey: "notes" },
+  { href: "/?view=current", label: "Bieżące", icon: "tasks", countKey: "current" },
+  { href: "/?view=waiting", label: "Oczekujące", icon: "waiting", countKey: "waiting" },
+  { href: "/?view=delegated", label: "Delegowane", icon: "delegated", countKey: "delegated" },
+  { href: "/?view=recurring", label: "Cykliczne", icon: "repeat", countKey: "recurring" },
+  { href: "/?view=done", label: "Zrobione", icon: "done", countKey: "done" },
 ];
 
 export function AppShell({
   children,
   user,
   unreadNotifications,
+  navigationCounts,
 }: {
   children: ReactNode;
   user: AuthenticatedUser;
   unreadNotifications: number;
+  navigationCounts: NavigationCounts;
 }) {
   const pathname = usePathname();
   const searchParams = useSearchParams();
@@ -35,6 +39,7 @@ export function AppShell({
   const mobileMenuOpen = mobileMenuRoute === mobileRouteKey;
   const moreSectionActive =
     pathname === "/notifications" ||
+    pathname === "/notes" ||
     pathname === "/settings" ||
     pathname === "/admin" ||
     pathname === "/teams" ||
@@ -55,8 +60,9 @@ export function AppShell({
           {navigation.map((item) => (
             <Link
               className={
-                pathname === "/" &&
-                ((item.href === "/" && !activeView) || item.href.endsWith(`view=${activeView}`))
+                ((item.href === "/notes" && pathname === "/notes") ||
+                  (item.href !== "/notes" && pathname === "/" &&
+                    ((item.href === "/" && !activeView) || item.href.endsWith(`view=${activeView}`))))
                   ? "nav-link active"
                   : "nav-link"
               }
@@ -64,7 +70,9 @@ export function AppShell({
               key={item.label}
             >
               <span><NavIcon name={item.icon} /></span>
-              {item.label}
+              <span className="nav-link-text">
+                {item.label} <small className="navigation-count">({navigationCounts[item.countKey]})</small>
+              </span>
             </Link>
           ))}
         </nav>
@@ -112,7 +120,7 @@ export function AppShell({
           />
         ) : null}
         <nav aria-label="Nawigacja mobilna" className="mobile-navigation">
-          {navigation.slice(0, 2).map((item) => (
+          {[navigation[0], navigation[2]].map((item) => (
             <Link
               className={
                 pathname === "/" &&
@@ -124,7 +132,10 @@ export function AppShell({
               key={item.label}
             >
               <span><NavIcon name={item.icon} /></span>
-              {item.href.includes("current") ? "Zadania" : item.label}
+              <span className="mobile-nav-label">
+                {item.href.includes("current") ? "Zadania" : item.label}{" "}
+                <small className="navigation-count">({navigationCounts[item.countKey]})</small>
+              </span>
             </Link>
           ))}
           <Link className="mobile-add-link" href="/tasks/new" aria-label="Dodaj nowe zadanie">
@@ -156,16 +167,19 @@ export function AppShell({
                   </span>
                 </div>
                 <Link className={activeView === "waiting" ? "mobile-menu-link active" : "mobile-menu-link"} href="/?view=waiting">
-                  <span><NavIcon name="waiting" /></span>Oczekujące
+                  <span><NavIcon name="waiting" /></span>Oczekujące <small className="navigation-count">({navigationCounts.waiting})</small>
+                </Link>
+                <Link className={pathname === "/notes" ? "mobile-menu-link active" : "mobile-menu-link"} href="/notes">
+                  <span><NavIcon name="notes" /></span>Notatki <small className="navigation-count">({navigationCounts.notes})</small>
                 </Link>
                 <Link className={activeView === "delegated" ? "mobile-menu-link active" : "mobile-menu-link"} href="/?view=delegated">
-                  <span><NavIcon name="delegated" /></span>Delegowane
+                  <span><NavIcon name="delegated" /></span>Delegowane <small className="navigation-count">({navigationCounts.delegated})</small>
                 </Link>
                 <Link className={activeView === "recurring" ? "mobile-menu-link active" : "mobile-menu-link"} href="/?view=recurring">
-                  <span><NavIcon name="repeat" /></span>Cykliczne
+                  <span><NavIcon name="repeat" /></span>Cykliczne <small className="navigation-count">({navigationCounts.recurring})</small>
                 </Link>
                 <Link className={activeView === "done" ? "mobile-menu-link active" : "mobile-menu-link"} href="/?view=done">
-                  <span><NavIcon name="done" /></span>Zrobione
+                  <span><NavIcon name="done" /></span>Zrobione <small className="navigation-count">({navigationCounts.done})</small>
                 </Link>
                 <Link className={pathname === "/settings" ? "mobile-menu-link active" : "mobile-menu-link"} href="/settings">
                   <span><NavIcon name="settings" /></span>Moje ustawienia

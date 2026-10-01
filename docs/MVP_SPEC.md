@@ -45,7 +45,18 @@ Widok **Dzisiaj** ma hierarchię zadaniową, nie statystyczną. Najpierw pokazuj
 
 Zmiana na `WAITING` wymaga krótkiego powodu i opcjonalnej daty ponownego sprawdzenia. Zakończenie zadania zapisuje wykonawcę i czas wykonania.
 
-### 2.2 Widoczność
+### 2.2 Rodzaj zadania i widoczność
+
+Rodzaj zadania jest niezależny od zakresu dostępu:
+
+- `PRIVATE` – sprawa osobista, wyświetlana w sekcji „Prywatne”,
+- `COMPANY` – sprawa służbowa, wyświetlana w sekcji „Firmowe”.
+
+Każdy widok webowy prezentuje najpierw pionową sekcję firmową, a następnie prywatną. Ten układ obowiązuje na desktopie i urządzeniach mobilnych; aplikacja nie używa dwóch równoległych kolumn, aby zachować czytelność na wąskim ekranie.
+
+Brak jawnego rodzaju w poleceniu Telegrama oznacza zadanie prywatne. Rodzaj firmowy jest nadawany wyłącznie po wskazaniu „firmowe” lub odpowiedniej odmiany; agent nie zgaduje rodzaju na podstawie branżowego słownictwa. Autor może później zmienić typ zadania w aplikacji, a sam wybór zapisuje zmianę bez dodatkowego potwierdzania.
+
+Każde zadanie pokazuje plakietkę priorytetu: pilny, wysoki, normalny albo niski. W obrębie sekcji i kategorii zadania są porządkowane najpierw według priorytetu (`URGENT`, `HIGH`, `NORMAL`, `LOW`), a następnie według terminu. Autor i wykonawca mogą zmienić priorytet w aplikacji; wybór nowej wartości zapisuje się automatycznie.
 
 Zakresy zadania:
 
@@ -96,6 +107,8 @@ MVP obsługuje:
 - wydarzenia w Google Calendar.
 
 Silnik Taskera jest źródłem harmonogramu przypomnień. Wpis w Google Calendar nie zastępuje alertu aplikacji. Każda próba wysyłki ma stan, liczbę prób i identyfikator idempotencji, aby ponowne uruchomienie procesu nie wysłało duplikatów.
+
+Przy utworzeniu lub przekazaniu zadania nowy wykonawca otrzymuje natychmiastowy wpis w centrum powiadomień. Taki sam wpis otrzymuje każda nowa osoba wskazana w bezpośrednim udostępnieniu. Web Push i Telegram są kolejkowane wyłącznie, gdy odbiorca ma dostępny i włączony kanał; przypisanie zadania samemu sobie nie generuje alertu.
 
 Powiadomienie zawiera:
 
@@ -153,9 +166,19 @@ System przygotowuje podgląd:
 
 Kompletny szkic nowego zadania można potwierdzić przyciskiem „Zapisz” lub odrzucić. Może on zawierać jednego wykonawcę i jednego bezpośredniego odbiorcę udostępnienia; obie role są pokazane oddzielnie. Brak reakcji przez 10 minut powoduje automatyczne utworzenie wyłącznie kompletnego nowego zadania i wysłanie potwierdzenia. Szkic `SHARED` bez odbiorcy pozostaje niekompletny. Zakończenie, przesunięcie terminu, udostępnienie istniejącego zadania oraz przekazanie wykonawcy zawsze wymagają ręcznego zatwierdzenia. Niejednoznaczna osoba, data lub zadanie wymaga doprecyzowania i nigdy nie jest zatwierdzana automatycznie.
 
+Szybka komenda `/dodaj` jest kanoniczną instrukcją tworzenia i wyjaśnia odrębność wykonawcy oraz odbiorcy udostępnienia. `/pomoc` pokazuje pozostałe możliwości, skróty i operacje na istniejących zadaniach, a w sprawie tworzenia odsyła do `/dodaj` zamiast powtarzać jej treść.
+
 Transkrypcja mowy działa przez węzeł OpenAI w n8n, oddzielony od logiki biznesowej Taskera, dzięki czemu dostawcę można zmienić bez przebudowy obsługi zadań. Tasker nie zapisuje nagrania ani transkrypcji w swojej bazie. Plik binarny podlega retencji technicznej instancji n8n; docelową polityką pozostaje możliwie szybkie usuwanie danych wykonania po przetworzeniu.
 
-### 2.8 Moje ustawienia
+### 2.8 Notatki — rozszerzenie po MVP
+
+Notatka jest prywatnym rekordem właściciela, całkowicie niezależnym od zadania. Zawiera tytuł, treść, jeden z sześciu kolorów oraz daty utworzenia i modyfikacji. Nie ma wykonawcy, terminu zadania, widoczności firmowej, komentarzy ani synchronizacji Google Calendar.
+
+Notatkę można tworzyć, edytować i usuwać w osobnym module. Widok webowy jest kompaktową tabelą podobną do prostej bazy Notion: przycisk „Dodaj notatkę” w górnej części rozwija pola tworzenia, a kliknięcie istniejącego wiersza zamienia go w edytowalne pola tytułu, treści i koloru. Usunięcie jest dostępne z wiersza i wymaga potwierdzenia. Telegram zapisuje notatkę natychmiast przez `/notatka TREŚĆ` albo sformułowania „dodaj do notatek…” i „zapisz w notatkach…”. Identyfikator aktualizacji Telegrama zapewnia idempotencję.
+
+Użytkownik może skonfigurować wiele niezależnych przypomnień o uporządkowaniu notatek. Każde ma częstotliwość dzienną albo tygodniową, dla tygodniowej wybrany dzień, lokalną godzinę i stan włączone/wyłączone. Przypomnienie korzysta z kanałów użytkownika i prowadzi do `/notes`.
+
+### 2.9 Moje ustawienia
 
 Każdy użytkownik może zarządzać:
 
@@ -168,25 +191,31 @@ Każdy użytkownik może zarządzać:
 - połączeniem Google Calendar,
 - połączeniem Telegram,
 - językiem i wyglądem aplikacji.
+- dziennymi i tygodniowymi harmonogramami porządkowania notatek.
 
 Ustawienia globalne są dostępne wyłącznie administratorowi aplikacji i obejmują konfigurację integracji, domyślne polityki, zarządzanie użytkownikami, stan procesów w tle oraz diagnostykę.
 
 ## 3. Ekrany MVP
 
 1. **Logowanie i aktywacja zaproszenia**.
-2. **Dzisiaj** – zadania przeterminowane, świadomie przypięte do planu oraz z terminem na dziś; statystyki pozostają stale widoczne pod listą.
-3. **Bieżące**.
+2. **Dzisiaj** – zadania przeterminowane, świadomie przypięte do planu oraz z terminem na dziś; zadania są rozdzielone na firmowe i prywatne, a statystyki pozostają stale widoczne pod listą.
+3. **Bieżące** – aktywne zadania przypisane użytkownikowi oraz jawnie udostępnione bez zmiany wykonawcy.
 4. **Oczekujące**.
 5. **Delegowane**.
 6. **Cykliczne**.
 7. **Zrobione**.
 8. **Szczegóły zadania** – komentarze, historia, termin, wykonawca i widoczność.
-9. **Nowe/edytowane zadanie** – szybki formularz eksponuje tytuł, wykonawcę, termin i priorytet, a opis, widoczność, udostępnianie oraz cykliczność rozwija się na żądanie.
+9. **Nowe/edytowane zadanie** – szybki formularz eksponuje tytuł, rodzaj prywatne/firmowe, wykonawcę, termin i priorytet, a opis, widoczność, udostępnianie oraz cykliczność rozwija się na żądanie. Autor może później zmienić rodzaj w szczegółach zadania.
 10. **Centrum powiadomień**.
-11. **Moje ustawienia** – profil, Google, Telegram, push i preferencje.
-12. **Administracja** – użytkownicy, konfiguracja i kondycja integracji.
+11. **Notatki** – prywatne karty z tytułem, treścią, kolorem i edycją.
+12. **Moje ustawienia** – profil, Google, Telegram, push, preferencje i harmonogramy notatek.
+13. **Administracja** – użytkownicy, konfiguracja i kondycja integracji.
 
-Na urządzeniach mobilnych kluczowe akcje „Dodaj”, „Zrobione” i „Przesuń” muszą być dostępne bez rozwijania wielopoziomowych menu. Dolny pasek zawiera `Dzisiaj`, `Zadania`, centralne `Dodaj`, `Powiadomienia` i `Więcej`.
+Na urządzeniach mobilnych kluczowe akcje „Dodaj”, „Zrobione” i „Przesuń” muszą być dostępne bez rozwijania wielopoziomowych menu. Dolny pasek zawiera `Dzisiaj`, `Zadania`, centralne `Dodaj`, `Powiadomienia` i `Więcej`. Etykiety `Dzisiaj`, `Zadania` oraz pozycji w menu `Więcej` pokazują w nawiasach liczbę elementów, a na komputerze analogiczne liczniki są widoczne przy wszystkich pozycjach zadań i notatek w panelu bocznym. Licznik korzysta z tego samego filtra dostępu i statusu co ekran docelowy, uwzględnia zero i po wejściu odpowiada liczbie widocznych wierszy.
+
+Zadanie przypisane odbiorcy oraz zadanie jedynie mu udostępnione są widoczne w jego głównych listach. Ponieważ delegowanie zmienia wykonawcę, a udostępnienie tylko rozszerza dostęp, wiersz otrzymanego zadania pokazuje autora z jego awatarem. Odbiorca samego udostępnienia może otworzyć szczegóły i komentować, ale lista nie proponuje mu zakończenia ani zmiany terminu; te operacje pozostają dostępne autorowi i wykonawcy.
+
+Podział firmowe/prywatne nie nadaje ani nie odbiera dostępu. Zadanie firmowe może pozostać widoczne tylko dla autora i wykonawcy, a zadanie prywatne może zostać świadomie udostępnione konkretnej osobie. To pole służy klasyfikacji i prezentacji, natomiast `visibility` nadal steruje uprawnieniami.
 
 ## 4. Model uprawnień
 
@@ -220,6 +249,7 @@ Minimalne encje:
 - `PushSubscription` – urządzenie/przeglądarka,
 - `GoogleConnection` i `CalendarEventLink`,
 - `TelegramConnection`,
+- `Note` oraz `NoteReminderSchedule`,
 - `AuditEvent` – niezmienialny dziennik operacji.
 
 Wszystkie rekordy biznesowe otrzymują stabilne identyfikatory, znaczniki czasu i mechanizm wersjonowania do ochrony przed równoczesną edycją.

@@ -74,7 +74,7 @@ const transcribeVoiceMessage = node({
     parameters: {
       resource: "audio",
       operation: "transcribe",
-      options: { language: "pl", prompt: "Polecenie dotyczące zadań w języku polskim." },
+      options: { language: "pl", prompt: "Polecenie dotyczące zadań lub notatek w języku polskim." },
     },
     credentials: { openAiApi: newCredential("Tasker OpenAI") },
   },
@@ -107,6 +107,13 @@ const normalizeUpdate = node({
         "  else if (asksForTasks && /(?:\\bzalegl(?:e|ych|ymi)?\\b|po terminie)/.test(normalizedText)) directIntent = 'LIST_OVERDUE';\n" +
         "  else if (asksForTasks && /(?:\\bwszystk(?:ie|ich|imi)?\\b|\\bkategori(?:e|ach)\\b)/.test(normalizedText)) directIntent = 'LIST_ALL';\n" +
         "}\n" +
+        "const scopeText = text.toLocaleLowerCase('pl-PL').normalize('NFD').replace(/[\\u0300-\\u036f]/g, '').replace(/[^a-z0-9]+/g, ' ');\n" +
+        "const hasCompanyScope = /(?:^|\\s)firmow(?:e|a|y|ego|ej|emu|ym|ych)(?:\\s|$)/.test(scopeText);\n" +
+        "const hasPrivateScope = /(?:^|\\s)prywatn(?:e|a|y|ego|ej|emu|ym|ych)(?:\\s|$)/.test(scopeText);\n" +
+        "const explicitTaskScope = hasCompanyScope && !hasPrivateScope ? 'COMPANY' : (hasPrivateScope && !hasCompanyScope ? 'PRIVATE' : '');\n" +
+        "const noteCommand = text.match(/^\\/notatka(?:@\\w+)?(?:\\s+([\\s\\S]+))?$/i);\n" +
+        "const noteNatural = text.match(/^(?:dodaj|zapisz)(?:\\s+mi)?\\s+(?:do\\s+notatek|w\\s+notatkach|notatk[ęe])\\s*[,;:\\-]?\\s*([\\s\\S]+)$/i);\n" +
+        "const noteContent = String(noteCommand?.[1] || noteNatural?.[1] || '').trim();\n" +
         "const callbackData = String(callback?.data || '');\n" +
         "let route = 'create';\n" +
         "let draftId = '';\n" +
@@ -116,10 +123,12 @@ const normalizeUpdate = node({
         "else {\n" +
         "  const link = text.match(/^\\/(?:start|polacz)\\s+([A-Z0-9]{6,20})$/i);\n" +
         "  if (link) { route = 'link'; linkCode = link[1].toUpperCase(); }\n" +
+        "  else if (noteContent) route = 'note';\n" +
         "  else if (directIntent) route = 'list';\n" +
-        "  else if (!text || text.length < 3 || /^\\/(?:start|pomoc|help|dodaj)(?:@\\w+)?$/i.test(text)) route = 'help';\n" +
+        "  else if (/^\\/dodaj(?:@\\w+)?$/i.test(text)) route = 'add_help';\n" +
+        "  else if (!text || text.length < 3 || /^\\/(?:start|pomoc|help|notatka)(?:@\\w+)?$/i.test(text)) route = 'help';\n" +
         "}\n" +
-        "return { json: { route, text, directIntent, draftId, linkCode, telegramUserId: String(callback?.from?.id || message?.from?.id || ''), chatId: String(message?.chat?.id || ''), callbackQueryId: String(callback?.id || ''), sourceEventId: 'telegram-update-' + String(update.update_id || '') } };",
+        "return { json: { route, text, directIntent, explicitTaskScope, noteContent, draftId, linkCode, telegramUserId: String(callback?.from?.id || message?.from?.id || ''), chatId: String(message?.chat?.id || ''), callbackQueryId: String(callback?.id || ''), sourceEventId: 'telegram-update-' + String(update.update_id || '') } };",
     },
   },
   output: [
@@ -127,6 +136,7 @@ const normalizeUpdate = node({
       route: "create",
       text: "Dodaj zadanie dla Michała: oddzwonić jutro o 15:00",
       directIntent: "",
+      noteContent: "",
       draftId: "",
       linkCode: "",
       telegramUserId: "123456789",
@@ -143,8 +153,8 @@ const routeCommand = switchCase({
     name: "Wybierz operację",
     parameters: {
       mode: "expression",
-      numberOutputs: 6,
-      output: expr("{{ ({ link: 0, confirm: 1, cancel: 2, create: 3, help: 4, list: 5 })[$json.route] ?? 4 }}"),
+      numberOutputs: 8,
+      output: expr("{{ ({ link: 0, confirm: 1, cancel: 2, create: 3, help: 4, list: 5, note: 6, add_help: 7 })[$json.route] ?? 4 }}"),
     },
   },
 });
@@ -319,7 +329,7 @@ const taskModel = languageModel({
     parameters: {
       model: { __rl: true, mode: "list", value: "gpt-5.4-mini", cachedResultName: "gpt-5.4-mini" },
       responsesApiEnabled: true,
-      options: { temperature: 0.1, reasoningEffort: "low", maxRetries: 2, timeout: 60000 },
+      options: { reasoningEffort: "low", maxRetries: 2, timeout: 60000 },
     },
     credentials: { openAiApi: newCredential("Tasker OpenAI") },
   },
@@ -357,6 +367,7 @@ const taskParser = outputParser({
           "shareWith",
           "dueDate",
           "dueTime",
+          "taskScope",
           "visibility",
           "priority",
         ],
@@ -369,6 +380,7 @@ const taskParser = outputParser({
           shareWith: { type: "string", maxLength: 320 },
           dueDate: { type: "string", description: "YYYY-MM-DD albo pusty ciąg" },
           dueTime: { type: "string", description: "HH:mm albo pusty ciąg" },
+          taskScope: { type: "string", enum: ["PRIVATE", "COMPANY"] },
           visibility: { type: "string", enum: ["PRIVATE", "COMPANY", "SHARED"] },
           priority: { type: "string", enum: ["LOW", "NORMAL", "HIGH", "URGENT"] },
         },
@@ -409,6 +421,7 @@ const assignableUsers = node({
           { name: "Mateusz Meloch" },
           { name: "Michał Murawski" },
           { name: "Nadia Kamieniecka-Nowak" },
+          { name: "Paulina Grzankowska" },
           { name: "Paweł Kurek" },
         ],
       },
@@ -439,6 +452,7 @@ const taskAgent = node({
           "Zwroty 'dodaj Michała do zadania', 'udostępnij zadanie Michałowi' oznaczają SHARE_TASK. Zwroty 'przekaż zadanie Michałowi', 'przypisz zadanie Michałowi' albo 'zmień wykonawcę na Michała' oznaczają REASSIGN_TASK. " +
           "Dla COMPLETE_TASK, RESCHEDULE_TASK, SHARE_TASK i REASSIGN_TASK użytkownik nie musi znać dokładnego tytułu. Wpisz w taskQuery charakterystyczne słowa z jego polecenia, pomijając zwroty sterujące; title pozostaw pusty. Dla SHARE_TASK i REASSIGN_TASK wpisz pełną nazwę rozpoznanej osoby z listy w assignee. Tasker pobierze dozwolone aktywne zadania i dopasuje tytuł tolerując odmiany, interpunkcję, domeny i drobne literówki. Dla list oba pola pozostaw puste. " +
           "Dla CREATE_TASK wpisz tytuł w title, a taskQuery pozostaw pusty. Jeżeli użytkownik w tym samym poleceniu tworzy zadanie i udostępnia je osobie, nadal użyj CREATE_TASK, wpisz pełną nazwę tej osoby z listy w shareWith i ustaw visibility na SHARED. assignee nadal oznacza wyłącznie wykonawcę; shareWith oznacza osobę otrzymującą dostęp. W pozostałych przypadkach shareWith pozostaw pusty. " +
+          "Rodzaj zadania zapisuj niezależnie od widoczności: zwroty 'zadanie firmowe' lub 'firmowa sprawa' oznaczają taskScope COMPANY, a 'zadanie prywatne' lub 'prywatna sprawa' oznaczają taskScope PRIVATE. Jeśli rodzaju nie podano, ustaw PRIVATE. Udostępnienie zadania nie zmienia automatycznie jego rodzaju. " +
           "Rozpoznawaj daty względne według podanej daty w strefie Europe/Warsaw. " +
           'Autorem polecenia jest {{ $json.body.author.name }}. Dostępni wykonawcy: {{ $json.body.users.map((user) => user.name).join(", ") }}. ' +
           "Wykonawca to osoba, która ma wykonać czynność, a nie odbiorca, klient, adresat, rozmówca ani osoba występująca tylko w treści zadania. " +
@@ -446,7 +460,7 @@ const taskAgent = node({
           "Przykład: 'przypomnij mi, żebym wysłał stronę Pawłowi' oznacza pusty assignee, ponieważ autor wysyła, a Paweł jest odbiorcą. " +
           "Ustaw nazwisko jako assignee tylko przy jawnym wykonawcy, np. 'Paweł ma wysłać', 'przypomnij Pawłowi, żeby wysłał', 'deleguj Pawłowi'. " +
           "Jeśli rola osoby jest niejasna, zwróć pusty assignee — Tasker przypisze autora. " +
-          "Jeżeli daty lub godziny nie podano, zwróć pusty ciąg. Domyślna widoczność to PRIVATE, a priorytet NORMAL. " +
+          "Jeżeli daty lub godziny nie podano, zwróć pusty ciąg. Domyślny rodzaj to PRIVATE, domyślna widoczność to PRIVATE, a priorytet NORMAL. " +
           "Słowa pilne/natychmiast oznaczają URGENT, wysoki priorytet oznacza HIGH.",
         ),
       },
@@ -464,6 +478,7 @@ const taskAgent = node({
         shareWith: "",
         dueDate: "2026-08-29",
         dueTime: "15:00",
+        taskScope: "PRIVATE",
         visibility: "PRIVATE",
         priority: "NORMAL",
       },
@@ -485,7 +500,7 @@ const createDraft = node({
       contentType: "json",
       specifyBody: "json",
       jsonBody: expr(
-        '{{ { telegramUserId: $("Rozpoznaj rodzaj polecenia").item.json.telegramUserId, sourceEventId: $("Rozpoznaj rodzaj polecenia").item.json.sourceEventId, sourceText: $("Rozpoznaj rodzaj polecenia").item.json.text, intent: $json.output.intent, ...($json.output.intent === "CREATE_TASK" ? { title: $json.output.title, description: $json.output.description, assignee: $json.output.assignee, shareWith: $json.output.shareWith, visibility: $json.output.visibility, priority: $json.output.priority } : {}), ...(["COMPLETE_TASK", "RESCHEDULE_TASK", "SHARE_TASK", "REASSIGN_TASK"].includes($json.output.intent) ? { taskQuery: $json.output.taskQuery } : {}), ...(["SHARE_TASK", "REASSIGN_TASK"].includes($json.output.intent) ? { assignee: $json.output.assignee } : {}), ...($json.output.dueDate ? { dueDate: $json.output.dueDate } : {}), ...($json.output.dueDate && $json.output.dueTime ? { dueTime: $json.output.dueTime } : {}) } }}',
+        '{{ { telegramUserId: $("Rozpoznaj rodzaj polecenia").item.json.telegramUserId, sourceEventId: $("Rozpoznaj rodzaj polecenia").item.json.sourceEventId, sourceText: $("Rozpoznaj rodzaj polecenia").item.json.text, intent: $json.output.intent, ...($json.output.intent === "CREATE_TASK" ? { title: $json.output.title, description: $json.output.description, assignee: $json.output.assignee, shareWith: $json.output.shareWith, taskScope: $("Rozpoznaj rodzaj polecenia").item.json.explicitTaskScope || $json.output.taskScope, visibility: $json.output.visibility, priority: $json.output.priority } : {}), ...(["COMPLETE_TASK", "RESCHEDULE_TASK", "SHARE_TASK", "REASSIGN_TASK"].includes($json.output.intent) ? { taskQuery: $json.output.taskQuery } : {}), ...(["SHARE_TASK", "REASSIGN_TASK"].includes($json.output.intent) ? { assignee: $json.output.assignee } : {}), ...($json.output.dueDate ? { dueDate: $json.output.dueDate } : {}), ...($json.output.dueDate && $json.output.dueTime ? { dueTime: $json.output.dueTime } : {}) } }}',
       ),
       options: { response: { response: { fullResponse: true, neverError: true, responseFormat: "json" } } },
     },
@@ -500,6 +515,7 @@ const createDraft = node({
           title: "Oddzwonić",
           assignee: "Michał Murawski",
           dueAt: "2026-08-29T13:00:00.000Z",
+          taskScope: "PRIVATE",
           visibility: "PRIVATE",
           priority: "NORMAL",
         },
@@ -530,6 +546,48 @@ const directListRequest = node({
     credentials: { httpBearerAuth: { id: "vtvrzLWu4B9S4lTr", name: "Tasker API" } },
   },
   output: [{ body: { kind: "SUMMARY", view: "TOMORROW", tasks: [] }, statusCode: 200 }],
+});
+
+const createNoteRequest = node({
+  type: "n8n-nodes-base.httpRequest",
+  version: 4.5,
+  config: {
+    name: "Zapisz notatkę w Taskerze",
+    parameters: {
+      method: "POST",
+      url: "https://tasker.dpkomis.pl/api/integrations/notes",
+      authentication: "genericCredentialType",
+      genericAuthType: "httpBearerAuth",
+      sendBody: true,
+      contentType: "json",
+      specifyBody: "json",
+      jsonBody: expr(
+        '{{ { telegramUserId: $("Rozpoznaj rodzaj polecenia").item.json.telegramUserId, sourceEventId: $("Rozpoznaj rodzaj polecenia").item.json.sourceEventId, content: $("Rozpoznaj rodzaj polecenia").item.json.noteContent } }}',
+      ),
+      options: { response: { response: { fullResponse: true, neverError: true, responseFormat: "json" } } },
+    },
+    credentials: { httpBearerAuth: { id: "vtvrzLWu4B9S4lTr", name: "Tasker API" } },
+  },
+  output: [{ body: { kind: "NOTE_CREATED", created: true, note: { id: "00000000-0000-0000-0000-000000000000", title: "Pomysł", url: "/notes#note-00000000-0000-0000-0000-000000000000" } }, statusCode: 201 }],
+});
+
+const noteReply = node({
+  type: "n8n-nodes-base.telegram",
+  version: 1.2,
+  config: {
+    name: "Potwierdź zapisanie notatki",
+    parameters: {
+      resource: "message",
+      operation: "sendMessage",
+      chatId: expr('{{ $("Rozpoznaj rodzaj polecenia").item.json.chatId }}'),
+      text: expr(
+        '{{ $json.statusCode >= 200 && $json.statusCode < 300 ? ($json.body.created ? "✅ Notatka została zapisana.\n\n" + $json.body.note.title : "ℹ️ Ta notatka była już zapisana.") + "\n\nhttps://tasker.dpkomis.pl" + $json.body.note.url : ($json.body?.error === "TELEGRAM_ACCOUNT_NOT_LINKED" ? "Najpierw połącz Telegram z kontem Taskera. Wygeneruj kod w ustawieniach i wyślij: /polacz KOD" : "❌ Nie udało się zapisać notatki: " + ($json.body?.error ?? "nieznany błąd")) }}',
+      ),
+      additionalFields: { appendAttribution: false, disable_web_page_preview: true },
+    },
+    credentials: { telegramApi: newCredential("Tasker Telegram Bot") },
+  },
+  output: [{ ok: true, result: { message_id: 18 } }],
 });
 
 const isSummary = ifElse({
@@ -566,22 +624,36 @@ const dueLabel = (value) => value
 const taskLine = (task, index, showAssignee) => {
   const title = escapeHtml(task.title);
   const url = "https://tasker.dpkomis.pl/tasks/" + encodeURIComponent(task.id);
-  const assignee = showAssignee && task.assignee ? " · " + escapeHtml(task.assignee) : "";
-  return (index + 1) + ". <a href=\"" + url + "\">" + title + "</a>" + dueLabel(task.dueAt) + assignee;
+  const author = task.author ? " · autor: " + escapeHtml(task.author) : "";
+  const assignee = showAssignee && task.assignee ? " · wykonawca: " + escapeHtml(task.assignee) : "";
+  return (index + 1) + ". <a href=\\\"" + url + "\\\">" + title + "</a>" + dueLabel(task.dueAt) + author + assignee;
 };
-const chunksForGroup = (icon, label, tasks, showAssignee) => {
-  const heading = icon + " <b>" + label + " (" + tasks.length + ")</b>";
-  if (!tasks.length) return [heading + "\nBrak zadań."];
+const scopeMessages = (scope, scopeIcon, scopeLabel, definitions) => {
+  const scopeHeading = scopeIcon + " <b>" + scopeLabel + "</b>";
   const chunks = [];
-  let message = heading;
-  tasks.forEach((task, index) => {
-    const line = "\n" + taskLine(task, index, showAssignee);
-    if (message.length + line.length > 3600) {
+  let message = scopeHeading;
+  definitions.forEach(([icon, label, allTasks, showAssignee]) => {
+    const tasks = allTasks.filter((task) => (task.taskScope || "PRIVATE") === scope);
+    const groupHeading = "\\n\\n" + icon + " <b>" + label + " (" + tasks.length + ")</b>";
+    if (message.length + groupHeading.length > 3600) {
       chunks.push(message);
-      message = heading + " — ciąg dalszy" + line;
+      message = scopeHeading + " — ciąg dalszy" + groupHeading;
     } else {
-      message += line;
+      message += groupHeading;
     }
+    if (!tasks.length) {
+      message += "\\nBrak zadań.";
+      return;
+    }
+    tasks.forEach((task, index) => {
+      const line = "\\n" + taskLine(task, index, showAssignee);
+      if (message.length + line.length > 3600) {
+        chunks.push(message);
+        message = scopeHeading + " — ciąg dalszy\\n\\n" + icon + " <b>" + label + "</b>" + line;
+      } else {
+        message += line;
+      }
+    });
   });
   chunks.push(message);
   return chunks;
@@ -593,9 +665,10 @@ if (body.view === "ALL") {
     ["🔵", "Delegowane", body.groups?.delegated || [], true],
     ["🔁", "Cykliczne", body.groups?.recurring || [], false],
   ];
-  return definitions.flatMap(([icon, label, tasks, showAssignee]) =>
-    chunksForGroup(icon, label, tasks, showAssignee).map((message) => ({ json: { message } })),
-  );
+  return [
+    ...scopeMessages("COMPANY", "🏢", "Zadania firmowe", definitions),
+    ...scopeMessages("PRIVATE", "🔒", "Zadania prywatne", definitions),
+  ].map((message) => ({ json: { message } }));
 }
 const labels = {
   TODAY: ["📅", "Zadania na dziś", "✅ Nie masz zadań na dziś."],
@@ -605,7 +678,11 @@ const labels = {
 const [icon, label, empty] = labels[body.view] || ["📋", "Zadania", "Brak zadań."];
 const tasks = body.tasks || [];
 if (!tasks.length) return [{ json: { message: empty } }];
-return chunksForGroup(icon, label, tasks, false).map((message) => ({ json: { message } }));`,
+const definitions = [[icon, label, tasks, false]];
+return [
+  ...scopeMessages("COMPANY", "🏢", "Firmowe", definitions),
+  ...scopeMessages("PRIVATE", "🔒", "Prywatne", definitions),
+].map((message) => ({ json: { message } }));`,
     },
   },
   output: [{ message: "🌅 <b>Zadania na jutro (1)</b>\n1. Oddzwonić · 31.08 15:00" }],
@@ -658,7 +735,7 @@ const draftPreview = node({
       operation: "sendMessage",
       chatId: expr('{{ $("Rozpoznaj rodzaj polecenia").item.json.chatId }}'),
       text: expr(
-        '{{ $json.body.preview.intent === "COMPLETE_TASK" ? "✅ Oznaczyć jako zrobione?\n\nZadanie: " + $json.body.preview.title + "\n\nTa operacja wymaga ręcznego zatwierdzenia." : ($json.body.preview.intent === "RESCHEDULE_TASK" ? "📅 Przesunąć termin?\n\nZadanie: " + $json.body.preview.title + "\nNowy termin: " + DateTime.fromISO($json.body.preview.dueAt).setZone("Europe/Warsaw").toFormat("dd.MM.yyyy HH:mm") + "\n\nTa operacja wymaga ręcznego zatwierdzenia." : ($json.body.preview.intent === "SHARE_TASK" ? "👥 Udostępnić zadanie?\n\nZadanie: " + $json.body.preview.title + "\nDostęp otrzyma: " + $json.body.preview.targetUser + "\nWykonawca pozostanie bez zmian.\n\nTa operacja wymaga ręcznego zatwierdzenia." : ($json.body.preview.intent === "REASSIGN_TASK" ? "🔁 Przekazać zadanie?\n\nZadanie: " + $json.body.preview.title + "\nNowy wykonawca: " + $json.body.preview.targetUser + "\n\nTa operacja wymaga ręcznego zatwierdzenia." : "📝 Szkic zadania\n\nTytuł: " + $json.body.preview.title + "\nWykonawca: " + ($json.body.preview.assignee ?? "autor") + ($json.body.preview.shareWith ? "\nDostęp otrzyma: " + $json.body.preview.shareWith : "") + "\nTermin: " + ($json.body.preview.dueAt ? DateTime.fromISO($json.body.preview.dueAt).setZone("Europe/Warsaw").toFormat("dd.MM.yyyy HH:mm") : "bez terminu") + "\nPriorytet: " + $json.body.preview.priority + "\nWidoczność: " + $json.body.preview.visibility + "\n\nZatwierdzić? Jeśli nic nie wybierzesz, zadanie zostanie utworzone automatycznie za 10 minut."))) }}',
+        '{{ (() => { const preview = $json.body.preview; if (preview.intent === "COMPLETE_TASK") return "✅ Oznaczyć jako zrobione?\n\nZadanie: " + preview.title + "\n\nTa operacja wymaga ręcznego zatwierdzenia."; if (preview.intent === "RESCHEDULE_TASK") return "📅 Przesunąć termin?\n\nZadanie: " + preview.title + "\nNowy termin: " + DateTime.fromISO(preview.dueAt).setZone("Europe/Warsaw").toFormat("dd.MM.yyyy HH:mm") + "\n\nTa operacja wymaga ręcznego zatwierdzenia."; if (preview.intent === "SHARE_TASK") return "👥 Udostępnić zadanie?\n\nZadanie: " + preview.title + "\nDostęp otrzyma: " + preview.targetUser + "\nWykonawca pozostanie bez zmian.\n\nTa operacja wymaga ręcznego zatwierdzenia."; if (preview.intent === "REASSIGN_TASK") return "🔁 Przekazać zadanie?\n\nZadanie: " + preview.title + "\nNowy wykonawca: " + preview.targetUser + "\n\nTa operacja wymaga ręcznego zatwierdzenia."; const taskType = preview.taskScope === "COMPANY" ? "firmowy" : "prywatny"; const priority = ({ LOW: "niski", NORMAL: "normalny", HIGH: "wysoki", URGENT: "pilny" })[preview.priority] ?? "normalny"; const access = ({ PRIVATE: "prywatny — autor i wykonawca", COMPANY: "firmowy — użytkownicy firmowi", SHARED: "udostępniony wybranej osobie" })[preview.visibility] ?? "prywatny — autor i wykonawca"; return "📝 Szkic zadania\n\nTytuł: " + preview.title + "\nTyp zadania: " + taskType + "\nWykonawca: " + (preview.assignee ?? "autor zadania") + (preview.shareWith ? "\nUdostępniono: " + preview.shareWith : "") + "\nTermin: " + (preview.dueAt ? DateTime.fromISO(preview.dueAt).setZone("Europe/Warsaw").toFormat("dd.MM.yyyy HH:mm") : "bez terminu") + "\nPriorytet: " + priority + "\nDostęp: " + access + "\n\nZatwierdzić? Jeśli nic nie wybierzesz, zadanie zostanie utworzone automatycznie za 10 minut."; })() }}',
       ),
       replyMarkup: "inlineKeyboard",
       inlineKeyboard: {
@@ -719,17 +796,54 @@ const helpReply = node({
         "/dzisiaj — zadania na dziś\n" +
         "/jutro — zadania z terminem na jutro\n" +
         "/zalegle — zadania po terminie\n" +
-        "/zadania — Bieżące, Oczekujące, Delegowane i Cykliczne\n" +
-        "/dodaj — ta instrukcja i przykład\n" +
+        "/zadania — zadania firmowe i prywatne z podziałem na kategorie\n" +
+        "/notatka TREŚĆ — zapisz prywatną notatkę\n" +
+        "/dodaj — pełna instrukcja tworzenia zadań\n" +
         "/pomoc — wszystkie możliwości\n\n" +
-        "Nowe zadanie możesz wpisać lub nagrać naturalnie, np.: Dodaj dla Michała zadanie oddzwonić jutro o 15:00.\n\n" +
-        "Możesz też napisać: oznacz oddzwonić jako zrobione, przełóż raport na poniedziałek 9:00, dodaj Michała do zadania z Polcardem, przekaż raport Michałowi albo dodaj zadanie sprawdzić faktury za godzinę i udostępnij je Michałowi. Operacje zmieniające zadania potwierdzasz przyciskiem.\n\n" +
+        "Obsługa istniejących zadań: możesz napisać lub nagrać: oznacz raport jako zrobiony, przełóż raport na poniedziałek 9:00, dodaj Michała do zadania z Polcardem albo przekaż raport Michałowi. Zmiany zawsze potwierdzasz przyciskiem.\n\n" +
+        "Notatki są osobnym modułem. Zapiszesz je przez /notatka TREŚĆ, „dodaj do notatek…” albo „zapisz w notatkach…”.\n\n" +
         "Ustawienia: https://tasker.dpkomis.pl/settings",
       additionalFields: { appendAttribution: false, disable_web_page_preview: true },
     },
     credentials: { telegramApi: newCredential("Tasker Telegram Bot") },
   },
   output: [{ ok: true, result: { message_id: 16 } }],
+});
+
+const addHelpReply = node({
+  type: "n8n-nodes-base.telegram",
+  version: 1.2,
+  config: {
+    name: "Pokaż instrukcję dodawania",
+    parameters: {
+      resource: "message",
+      operation: "sendMessage",
+      chatId: expr("{{ $json.chatId }}"),
+      text:
+        "Jak dodać zadanie w Taskerze\n\n" +
+        "Napisz albo nagraj polecenie zwykłym językiem. Podaj tyle informacji, ile znasz: co trzeba zrobić, kto ma to wykonać, termin, godzinę, priorytet i ewentualnie komu zadanie udostępnić.\n\n" +
+        "Przykłady:\n" +
+        "• Dodaj zadanie firmowe wysłać raport jutro o 14:00.\n" +
+        "• Dodaj prywatne zadanie kupić prezent w piątek o 10:30.\n" +
+        "• Dodaj dla Michała zadanie firmowe oddzwonić do klienta w piątek o 10:30.\n" +
+        "• Dodaj zadanie sprawdzić faktury za godzinę i udostępnij je Michałowi.\n" +
+        "• Dodaj dla Michała zadanie przygotować ofertę do poniedziałku i udostępnij je Pawłowi.\n" +
+        "• Dodaj pilne zadanie żebym dziś zadzwonił do księgowej.\n\n" +
+        "Wykonawca a udostępnienie:\n" +
+        "• Wykonawca odpowiada za realizację. Zwroty „dla Michała”, „Michał ma” albo „niech Michał” wskazują Michała jako wykonawcę.\n" +
+        "• Zwroty „żebym”, „abym” i „bym” oznaczają Ciebie jako wykonawcę.\n" +
+        "• „Udostępnij Michałowi” daje Michałowi dostęp, ale nie zmienia wykonawcy. Możesz jednocześnie wskazać innego wykonawcę i inną osobę do udostępnienia.\n" +
+        "• Klient, odbiorca telefonu lub adresat wiadomości nie staje się automatycznie wykonawcą.\n\n" +
+        "Rodzaj, dostęp i priorytet:\n" +
+        "• Napisz „zadanie firmowe” albo „zadanie prywatne”. Bez wskazania rodzaju zadanie będzie prywatne.\n" +
+        "• Rodzaj określa sekcję na listach. Dostęp jest osobną decyzją: zadanie może być udostępnione osobie bez zmiany jego rodzaju.\n" +
+        "• Słowa „pilne” i „natychmiast” ustawiają priorytet pilny; możesz też podać niski lub wysoki priorytet.\n\n" +
+        "Przed zapisem bot pokaże osobno tytuł, rodzaj, wykonawcę, odbiorcę udostępnienia, termin, priorytet i dostęp. Kompletny szkic nowego zadania możesz zatwierdzić lub anulować przyciskiem; bez reakcji zostanie zapisany automatycznie po 10 minutach. Niejasna osoba, data albo dostęp zawsze wymaga doprecyzowania.",
+      additionalFields: { appendAttribution: false, disable_web_page_preview: true },
+    },
+    credentials: { telegramApi: newCredential("Tasker Telegram Bot") },
+  },
+  output: [{ ok: true, result: { message_id: 19 } }],
 });
 
 const summaryFlow = formatSummary.to(summaryReply);
@@ -743,7 +857,9 @@ const commandFlow = normalizeUpdate.to(
       assignableUsers.to(taskAgent).to(createDraft).to(isSummary.onTrue(summaryFlow).onFalse(draftReady.onTrue(draftPreview).onFalse(draftProblem))),
     )
     .onCase(4, helpReply)
-    .onCase(5, directListRequest.to(summaryFlow)),
+    .onCase(5, directListRequest.to(summaryFlow))
+    .onCase(6, createNoteRequest.to(noteReply))
+    .onCase(7, addHelpReply),
 );
 
 export default workflow("tasker-telegram-ai", "Tasker — Telegram + AI")
