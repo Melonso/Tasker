@@ -10,6 +10,7 @@
 - **Etap 5 – podstawowy obieg gotowy.** OAuth, primary calendar, tworzenie, aktualizacja, zakończenie i odłączenie działają; wybór innego kalendarza pozostaje do wykonania.
 - **Etapy 6–7 – gotowe dla MVP.** Telegram przyjmuje tekst i głos transkrybowany przez OpenAI, tworzy bezpieczne szkice, kończy i przesuwa zadania, inteligentnie dopasowuje zapamiętany fragment aktywnego tytułu, pokazuje listy na dziś, jutro, po terminie i według kategorii oraz wysyła alerty zgodnie z preferencjami.
 - **Etap 8 – pilotaż aktywny.** Działają lokalne automatyczne backupy, szyfrowana kopia w Google Drive przez n8n, sprawdzona pełna próba odtworzenia offsite, automatyczna retencja 14 zestawów dziennych + 8 tygodniowych, zewnętrzny monitoring i metryki pilotażu uruchomionego 2026-08-29 dla czterech użytkowników.
+- **Etap 10 – poprawki z code review (2026-10-01) gotowe w kodzie, czekają na wdrożenie.** Szczegóły i status punktów są w `docs/FIX_ROADMAP.md`. Zakres: atomowe mutacje zadań i szkiców, odporna dostawa Telegram i Google Calendar, avatary serwowane z cache, liczniki pulpitu w SQL, limit prób logowania, wymuszone sekrety produkcyjne, izolowane kroki workera, komunikaty błędów zamiast ekranu awarii, nagłówki bezpieczeństwa oraz testy integracyjne na PostgreSQL (`pnpm test:integration`). Do decyzji właściciela pozostają: dostęp poprzedniego wykonawcy po przekazaniu zadania oraz znaczenie flagi zespołu zewnętrznego.
 - **Etap 9 – pierwsza iteracja UX wdrożona.** Audyt znajduje się w `docs/UX_RESEARCH_2026-08-29.md`. Zrealizowano zadaniowy ekran „Dzisiaj”, osobiste przypinanie do planu, stale widoczne statystyki pod listą, skanowalną listę, uproszczone dodawanie, szybkie przesuwanie terminu i mobilną nawigację z centralnym `+`.
 
 ## 1. Rekomendowana architektura
@@ -213,6 +214,9 @@ Google, Web Push i Telegram mogą być rozwijane równolegle dopiero po ustabili
 10. Odłączenie Google nie usuwa zadania i nie zatrzymuje powiadomień Taskera.
 11. Wygasły token Google uruchamia ponowienie i pokazuje użytkownikowi czytelny stan połączenia.
 12. Nieznana osoba w poleceniu głosowym wymusza doprecyzowanie zamiast przypadkowego delegowania.
+13. Równoczesne zakończenie zadania cyklicznego tworzy dokładnie jedno kolejne wystąpienie (test integracyjny).
+14. Wyścig ręcznego i automatycznego zatwierdzenia szkicu tworzy dokładnie jedno zadanie, a odrzucona operacja niczego nie zapisuje (test integracyjny).
+15. Udostępnienie zadania firmowego osobie zewnętrznej nie odbiera dostępu pozostałym pracownikom (test integracyjny).
 
 ## 6. Ryzyka i zabezpieczenia
 

@@ -199,6 +199,24 @@ Rollback aplikacji nie może automatycznie cofać destrukcyjnej migracji bazy. M
 
 Migracja `0007_shallow_captain_midlands.sql` dodaje nullable pole `tasks.planned_for_date` oraz indeks wykonawca + data planu. Jest rozszerzająca: starsza wersja aplikacji ignoruje kolumnę, dlatego rollback obrazu nie wymaga cofania migracji.
 
+### Wdrożenie poprawek z code review (przygotowane, jeszcze niewykonane)
+
+Gałąź `claude/relaxed-gauss-23rram` zawiera poprawki opisane w `docs/FIX_ROADMAP.md`. Wdrożenie wykonujemy jednorazowo, po zakończeniu wszystkich punktów, w tej kolejności:
+
+1. Wykonać i zweryfikować backup: `deploy/backup-tasker.sh`.
+2. Sprawdzić, że chroniony `.env` zawiera jawne `SESSION_SECRET` oraz `INTEGRATION_ENCRYPTION_KEY` (np. `grep -c '^SESSION_SECRET=' .env`, bez wyświetlania wartości). Nowa wersja odmawia startu w produkcji, jeżeli którejś brakuje — dotychczas po cichu używała wartości deweloperskich.
+3. Zbudować obrazy i uruchomić migrację `0008_login_attempts.sql`. Migracja tylko dodaje tabelę `login_attempts` z indeksami, dlatego rollback obrazu nie wymaga jej cofania.
+4. Wymienić procesy `web` i `worker`, sprawdzić `/api/health/ready` i `/api/health/operations`.
+5. Dopiero po aplikacji zaktualizować w n8n workflow „Tasker — przypomnienia Telegram” (wyjście błędu per wiadomość, raport `success:false`) oraz „Tasker — Telegram + AI” (tylko czaty prywatne, polskie etykiety podglądu). Przy okazji zmienić nazwę poświadczenia „Tasket Telegram Bot” na „Tasker Telegram Bot”.
+6. Smoke test: logowanie, utworzenie i zakończenie zadania, avatar w ustawieniach, `/dzisiaj` w Telegramie, szkic z potwierdzeniem, testowy push.
+
+Zmiany zachowania istotne operacyjnie:
+
+- `/api/health/operations` zwraca `degraded` dla nieświeżego lub zdegradowanego workera, nieudanego przypomnienia w ciągu 24 h albo co najmniej 3 nieudanych dostaw w ciągu 24 h. Pojedyncza nieudana dostawa nie wyłącza już stanu `operational` na dobę, a nieosiągalni odbiorcy Telegrama są oznaczani jako `SKIPPED`.
+- Worker wykonuje każdy krok skanu niezależnie i zapisuje heartbeat ze statusem `HEALTHY` albo `DEGRADED` oraz wynikiem każdego kroku. Nowy krok porządkowy usuwa wygasłe sesje, zużyte kody Telegrama i próby logowania starsze niż 30 dni.
+- Logowanie blokuje konto po 5 nieudanych próbach w ciągu 15 minut (oraz adres IP po 20); adres IP pochodzi z nagłówka `CF-Connecting-IP` ustawianego przez Cloudflare.
+- Aplikacja wysyła nagłówki CSP, `X-Frame-Options: DENY`, `Referrer-Policy`, `Permissions-Policy` i HSTS.
+
 ## 10. Kopie zapasowe i monitoring
 
 Minimum produkcyjne:

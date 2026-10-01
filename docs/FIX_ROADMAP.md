@@ -54,11 +54,17 @@ Legenda statusu: ⬜ do zrobienia · 🔄 w toku · ✅ zrobione w kodzie (czeka
 | 3.11 | Przekazanie zadania odbiera dostęp poprzedniemu wykonawcy | Decyzja produktowa | ❔ |
 | 3.12 | Flaga `isExternal` zespołu niczego nie wymusza | Decyzja produktowa | ❔ |
 
+## Weryfikacja przed wdrożeniem
+
+- `pnpm typecheck`, `pnpm lint`, `pnpm test` (testy jednostkowe) i `pnpm test:integration` (testy na PostgreSQL) przechodzą.
+- `pnpm build` przechodzi.
+- Test w przeglądarce (Chromium) na buildzie produkcyjnym: logowanie i odrzucenie błędnego hasła, utworzenie i zakończenie zadania, baner błędu i jego zniknięcie po odświeżeniu, avatar z endpointu bez data URL w HTML, strona 404, brak naruszeń CSP w konsoli.
+
 ## Etap 4 — Dokumentacja i wdrożenie (na końcu)
 
 | # | Zadanie | Status |
 |---|---------|--------|
-| 4.1 | Aktualizacja `README.md`, `docs/IMPLEMENTATION_PLAN.md`, `docs/INTEGRATION_API.md`, `docs/DEPLOYMENT.md` | ⬜ |
+| 4.1 | Aktualizacja `README.md`, `docs/IMPLEMENTATION_PLAN.md`, `docs/INTEGRATION_API.md`, `docs/DEPLOYMENT.md` (zmiany oznaczone ⏳; po wdrożeniu usunąć oznaczenia i dopisać datę) | 🔄 |
 | 4.2 | Backup produkcji, wdrożenie aplikacji i migracji | ⬜ |
-| 4.3 | Aktualizacja aktywnych workflow n8n (powiadomienia, Telegram + AI) | ⬜ |
+| 4.3 | Aktualizacja aktywnych workflow n8n (powiadomienia, Telegram + AI) po walidacji przez n8n MCP; zmiana nazwy poświadczenia (3.10) | ⬜ |
 | 4.4 | Weryfikacja po wdrożeniu (health, Telegram, push, kalendarz) | ⬜ |
