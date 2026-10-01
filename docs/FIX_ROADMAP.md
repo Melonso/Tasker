@@ -25,9 +25,9 @@ Legenda statusu: ⬜ do zrobienia · 🔄 w toku · ✅ zrobione w kodzie (czeka
 
 | # | Problem | Naprawa | Status |
 |---|---------|---------|--------|
-| 2.1 | Domyślne sekrety używane w produkcji | Walidacja środowiska blokuje start produkcji bez sekretów | ⬜ |
-| 2.2 | Logowanie: brak limitu prób, `scryptSync` blokuje event loop, nowa pula połączeń przy każdym logowaniu, różnica czasu dla nieistniejących kont | Limit prób w PostgreSQL, asynchroniczny scrypt, współdzielona pula, stały koszt weryfikacji | ⬜ |
-| 2.3 | Worker: wyjątek jednego kroku blokuje pozostałe i heartbeat | Izolacja kroków, heartbeat zawsze aktualizowany ze statusem kroków | ⬜ |
+| 2.1 | Domyślne sekrety używane w produkcji | Walidacja środowiska blokuje start produkcji bez sekretów | ✅ |
+| 2.2 | Logowanie: brak limitu prób, `scryptSync` blokuje event loop, nowa pula połączeń przy każdym logowaniu, różnica czasu dla nieistniejących kont | Limit prób w PostgreSQL, asynchroniczny scrypt, współdzielona pula, stały koszt weryfikacji | ✅ |
+| 2.3 | Worker: wyjątek jednego kroku blokuje pozostałe i heartbeat | Izolacja kroków, heartbeat zawsze aktualizowany ze statusem kroków | ✅ |
 | 2.4 | Błędy akcji kończą się ekranem awarii; UI pokazuje akcje niedozwolone dla użytkownika | `error.tsx`/`not-found.tsx`, akcje tylko dla uprawnionych, czytelne komunikaty | ⬜ |
 | 2.5 | `/api/health/operations` w stanie 503 przez 24 h po jednej nieudanej dostawie; ponawianie błędów trwałych | Progi zamiast „zero błędów”, bez ponawiania błędów trwałych | ⬜ |
 | 2.6 | Spóźnione przypomnienia „przed terminem” wysyłane po terminie | Pomijanie przypomnień przed terminem, gdy termin minął | ⬜ |
@@ -46,7 +46,7 @@ Legenda statusu: ⬜ do zrobienia · 🔄 w toku · ✅ zrobione w kodzie (czeka
 | 3.3 | Podsumowania Telegram filtrowane w JS | Filtrowanie w SQL | ⬜ |
 | 3.4 | Wstrzymanie/wznowienie cyklu bez transakcji | Transakcja | ✅ |
 | 3.5 | Zmiana godziny przypomnień nie przelicza zaplanowanych | Przeliczenie zaplanowanych `OVERDUE_DAILY` | ⬜ |
-| 3.6 | Sesje nie są czyszczone, `lastSeenAt` nieaktualizowane | Sprzątanie w workerze, aktualizacja z ograniczeniem częstotliwości | ⬜ |
+| 3.6 | Sesje nie są czyszczone, `lastSeenAt` nieaktualizowane | Sprzątanie w workerze, aktualizacja z ograniczeniem częstotliwości | ✅ |
 | 3.7 | Brak walidacji UUID udostępnień; wyścig przy łączeniu Telegrama → 500 | Walidacja i obsługa konfliktu (walidacja UUID w formularzu zadania: ✅) | 🔄 |
 | 3.8 | Dostawy Telegram odłączonych użytkowników wiszą w `PENDING` | Oznaczanie jako `SKIPPED` | ✅ |
 | 3.9 | Surowe enumy (`PRIVATE`, `NORMAL`) w UI i podglądzie szkicu | Polskie etykiety | ⬜ |

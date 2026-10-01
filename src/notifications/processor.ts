@@ -216,15 +216,18 @@ async function recordReminderFailure(reminder: ClaimedReminder, error: unknown) 
     .where(eq(reminders.id, reminder.id));
 }
 
-export async function updateWorkerHeartbeat(details: Record<string, unknown>) {
+export async function updateWorkerHeartbeat(
+  details: Record<string, unknown>,
+  status: "HEALTHY" | "DEGRADED" = "HEALTHY",
+) {
   const { db } = getDatabaseClient();
   const now = new Date();
   await db
     .insert(workerHeartbeats)
-    .values({ service: "reminder-worker", status: "HEALTHY", details, lastSeenAt: now, updatedAt: now })
+    .values({ service: "reminder-worker", status, details, lastSeenAt: now, updatedAt: now })
     .onConflictDoUpdate({
       target: workerHeartbeats.service,
-      set: { status: "HEALTHY", details, lastSeenAt: now, updatedAt: now },
+      set: { status, details, lastSeenAt: now, updatedAt: now },
     });
 }
 

@@ -1,10 +1,8 @@
 import { PgBoss } from "pg-boss";
 
 import { getServerEnv } from "../lib/env";
-import { processDueReminderBatch, updateWorkerHeartbeat } from "../notifications/processor";
-import { processWebPushBatch } from "../notifications/web-push-delivery";
-import { processGoogleCalendarBatch } from "../integrations/google/calendar-sync";
-import { processDraftAutoConfirmBatch } from "../integrations/draft-auto-confirm";
+import { updateWorkerHeartbeat } from "../notifications/processor";
+import { runWorkerScan } from "./scan";
 
 const REMINDER_QUEUE = "tasker-reminders-dispatch";
 const env = getServerEnv();
@@ -38,14 +36,9 @@ await boss.work(
   REMINDER_QUEUE,
   { batchSize: env.WORKER_CONCURRENCY },
   async (jobs) => {
-    for (const job of jobs) {
-      const draftAutoConfirm = await processDraftAutoConfirmBatch();
-      const reminders = await processDueReminderBatch();
-      const webPush = await processWebPushBatch();
-      const googleCalendar = await processGoogleCalendarBatch();
-      await updateWorkerHeartbeat({ draftAutoConfirm, reminders, webPush, googleCalendar });
-      console.info("Reminder scan completed", { jobId: job.id, draftAutoConfirm, reminders, webPush, googleCalendar });
-    }
+    // Several queued jobs mean the same thing: scan now. One scan covers all of them.
+    const scan = await runWorkerScan();
+    console.info("Reminder scan completed", { jobIds: jobs.map((job) => job.id), ...scan });
   },
 );
 

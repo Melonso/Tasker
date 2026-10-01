@@ -445,6 +445,21 @@ export const sessions = pgTable(
   ],
 );
 
+export const loginAttempts = pgTable(
+  "login_attempts",
+  {
+    id: uuid("id").defaultRandom().primaryKey(),
+    email: varchar("email", { length: 320 }).notNull(),
+    ipAddress: varchar("ip_address", { length: 64 }),
+    succeeded: boolean("succeeded").notNull(),
+    createdAt: timestamp("created_at", { withTimezone: true }).defaultNow().notNull(),
+  },
+  (table) => [
+    index("login_attempts_email_created_idx").on(table.email, table.createdAt),
+    index("login_attempts_ip_created_idx").on(table.ipAddress, table.createdAt),
+  ],
+);
+
 export const invitations = pgTable("invitations", {
   id: uuid("id").defaultRandom().primaryKey(),
   email: varchar("email", { length: 320 }).notNull(),
