@@ -12,7 +12,7 @@ interface SettingsFormProps {
   overdueReminderHour: number;
   timeZone: string;
   language: string;
-  avatarDataUrl: string | null;
+  avatarUrl: string | null;
 }
 
 export function SettingsForm(props: SettingsFormProps) {
@@ -22,7 +22,7 @@ export function SettingsForm(props: SettingsFormProps) {
     <form action={action}>
       <div className="avatar-settings">
         <UserAvatar
-          avatarDataUrl={props.avatarDataUrl}
+          avatarUrl={props.avatarUrl}
           firstName={props.firstName}
           lastName={props.lastName}
           size={72}
@@ -32,7 +32,7 @@ export function SettingsForm(props: SettingsFormProps) {
           <p>PNG, JPG lub WebP, maksymalnie 1 MB.</p>
           <input accept="image/png,image/jpeg,image/webp" name="avatar" type="file" />
         </div>
-        {props.avatarDataUrl ? (
+        {props.avatarUrl ? (
           <button className="text-button" formAction={removeAvatarAction} type="submit">
             Usuń avatar
           </button>

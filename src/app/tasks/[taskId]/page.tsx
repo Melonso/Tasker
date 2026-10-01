@@ -62,8 +62,8 @@ export default async function TaskDetailsPage({ params }: { params: Promise<{ ta
 
       <section className="panel task-detail-panel">
         <dl className="task-metadata">
-          <div><dt>Wykonawca</dt><dd className="person-value"><UserAvatar avatarDataUrl={task.assigneeAvatarDataUrl} firstName={task.assigneeFirstName} lastName={task.assigneeLastName} size={30} />{task.assigneeFirstName} {task.assigneeLastName}</dd></div>
-          <div><dt>Autor</dt><dd className="person-value"><UserAvatar avatarDataUrl={task.authorAvatarDataUrl} firstName={task.authorFirstName} lastName={task.authorLastName} size={30} />{task.authorFirstName} {task.authorLastName}</dd></div>
+          <div><dt>Wykonawca</dt><dd className="person-value"><UserAvatar avatarUrl={task.assigneeAvatarUrl} firstName={task.assigneeFirstName} lastName={task.assigneeLastName} size={30} />{task.assigneeFirstName} {task.assigneeLastName}</dd></div>
+          <div><dt>Autor</dt><dd className="person-value"><UserAvatar avatarUrl={task.authorAvatarUrl} firstName={task.authorFirstName} lastName={task.authorLastName} size={30} />{task.authorFirstName} {task.authorLastName}</dd></div>
           <div><dt>Termin</dt><dd>{dateTime(task.dueAt, user.timeZone)}</dd></div>
           <div><dt>Widoczność</dt><dd>{task.visibility}</dd></div>
           <div><dt>Priorytet</dt><dd>{task.priority}</dd></div>
@@ -139,7 +139,7 @@ export default async function TaskDetailsPage({ params }: { params: Promise<{ ta
                 {shareUsers.filter((person) => person.id !== task.authorId && person.id !== task.assigneeId).map((person) => (
                   <label key={person.id}>
                     <input defaultChecked={sharedUserIds.has(person.id)} name="shareUserIds" type="checkbox" value={person.id} />
-                    <UserAvatar avatarDataUrl={person.avatarDataUrl} firstName={person.firstName} lastName={person.lastName} size={30} />
+                    <UserAvatar avatarUrl={person.avatarUrl} firstName={person.firstName} lastName={person.lastName} size={30} />
                     <span>{person.firstName} {person.lastName}</span>
                   </label>
                 ))}
@@ -165,7 +165,7 @@ export default async function TaskDetailsPage({ params }: { params: Promise<{ ta
         <div className="comment-list">
           {task.comments.map((comment) => (
             <article className="comment" key={comment.id}>
-              <UserAvatar avatarDataUrl={comment.authorAvatarDataUrl} firstName={comment.authorFirstName} lastName={comment.authorLastName} />
+              <UserAvatar avatarUrl={comment.authorAvatarUrl} firstName={comment.authorFirstName} lastName={comment.authorLastName} />
               <div><strong>{comment.authorFirstName} {comment.authorLastName}</strong><time>{dateTime(comment.createdAt, user.timeZone)}</time><p>{comment.body}</p></div>
             </article>
           ))}

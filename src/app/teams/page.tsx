@@ -4,6 +4,7 @@ import { requireRole } from "@/auth/session";
 import { UserAvatar } from "@/components/user-avatar";
 import { getDatabaseClient } from "@/db/client";
 import { teamMembers, teams, users } from "@/db/schema";
+import { avatarUrlColumn } from "@/users/avatar-url";
 import { addTeamMemberAction, createTeamAction, removeTeamMemberAction } from "@/teams/actions";
 
 export const metadata = { title: "Zespoły" };
@@ -20,7 +21,7 @@ export default async function TeamsPage() {
         memberId: users.id,
         memberFirstName: users.firstName,
         memberLastName: users.lastName,
-        memberAvatarDataUrl: users.avatarDataUrl,
+        memberAvatarUrl: avatarUrlColumn(users),
       })
       .from(teams)
       .leftJoin(teamMembers, eq(teams.id, teamMembers.teamId))
@@ -59,7 +60,7 @@ export default async function TeamsPage() {
             <div className="team-member-list">
               {team.members.map((member) => (
                 <article key={member.memberId}>
-                  <UserAvatar avatarDataUrl={member.memberAvatarDataUrl} firstName={member.memberFirstName ?? ""} lastName={member.memberLastName ?? ""} />
+                  <UserAvatar avatarUrl={member.memberAvatarUrl} firstName={member.memberFirstName ?? ""} lastName={member.memberLastName ?? ""} />
                   <strong>{member.memberFirstName} {member.memberLastName}</strong>
                   {member.memberId !== user.id ? (
                     <form action={removeTeamMemberAction}><input name="teamId" type="hidden" value={team.id} /><input name="userId" type="hidden" value={member.memberId ?? ""} /><button className="text-button" type="submit">Usuń</button></form>

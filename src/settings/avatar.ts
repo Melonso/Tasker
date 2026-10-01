@@ -43,3 +43,11 @@ export async function avatarDataUrlFromUpload(file: File) {
 
   return `data:${mimeType};base64,${Buffer.from(bytes).toString("base64")}`;
 }
+
+export function parseAvatarDataUrl(dataUrl: string) {
+  const match = /^data:(image\/(?:png|jpeg|webp));base64,([A-Za-z0-9+/]+=*)$/.exec(dataUrl);
+  if (!match) return null;
+  const mimeType = match[1] as AvatarMimeType;
+  const bytes = Buffer.from(match[2]!, "base64");
+  return matchesSignature(bytes, mimeType) ? { mimeType, bytes } : null;
+}

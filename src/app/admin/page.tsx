@@ -16,6 +16,7 @@ import {
   users,
   workerHeartbeats,
 } from "@/db/schema";
+import { avatarUrlColumn } from "@/users/avatar-url";
 import { finishPilotAction, startPilotAction } from "@/pilot/actions";
 
 const roleLabels: Record<string, string> = {
@@ -37,7 +38,7 @@ export default async function AdminPage() {
         email: users.email,
         firstName: users.firstName,
         lastName: users.lastName,
-        avatarDataUrl: users.avatarDataUrl,
+        avatarUrl: avatarUrlColumn(users),
         isActive: users.isActive,
         role: roles.key,
       })
@@ -73,7 +74,7 @@ export default async function AdminPage() {
       ),
     db.select().from(pilotPrograms).orderBy(sql`${pilotPrograms.startedAt} desc`).limit(1),
   ]);
-  const usersById = new Map<string, { id: string; email: string; firstName: string; lastName: string; avatarDataUrl: string | null; isActive: boolean; roles: string[] }>();
+  const usersById = new Map<string, { id: string; email: string; firstName: string; lastName: string; avatarUrl: string | null; isActive: boolean; roles: string[] }>();
   for (const row of rows) {
     const current = usersById.get(row.id) ?? { ...row, roles: [] };
     if (row.role) current.roles.push(row.role);
@@ -132,7 +133,7 @@ export default async function AdminPage() {
         <div className="user-table" role="table" aria-label="Użytkownicy pilotażowi">
           {storedUsers.map((user) => (
             <div className="user-row" role="row" key={user.email}>
-              <UserAvatar avatarDataUrl={user.avatarDataUrl} firstName={user.firstName} lastName={user.lastName} />
+              <UserAvatar avatarUrl={user.avatarUrl} firstName={user.firstName} lastName={user.lastName} />
               <div className="user-identity">
                 <strong>{user.firstName} {user.lastName}</strong>
                 <span>{user.email}</span>

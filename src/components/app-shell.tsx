@@ -92,7 +92,7 @@ export function AppShell({
             </Link>
           ) : null}
           <div className="user-chip">
-            <UserAvatar avatarDataUrl={user.avatarDataUrl} firstName={user.firstName} lastName={user.lastName} />
+            <UserAvatar avatarUrl={user.avatarUrl} firstName={user.firstName} lastName={user.lastName} />
             <span>
               <strong>{user.firstName} {user.lastName}</strong>
               <small>{user.roles.includes("APP_ADMIN") ? "Administrator aplikacji" : "Użytkownik Taskera"}</small>
@@ -149,7 +149,7 @@ export function AppShell({
             {mobileMenuOpen ? (
               <div className="mobile-menu-panel">
                 <div className="mobile-menu-user">
-                  <UserAvatar avatarDataUrl={user.avatarDataUrl} firstName={user.firstName} lastName={user.lastName} />
+                  <UserAvatar avatarUrl={user.avatarUrl} firstName={user.firstName} lastName={user.lastName} />
                   <span>
                     <strong>{user.firstName} {user.lastName}</strong>
                     <small>{user.roles.includes("APP_ADMIN") ? "Administrator aplikacji" : "Użytkownik Taskera"}</small>

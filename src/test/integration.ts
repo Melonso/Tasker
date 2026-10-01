@@ -58,7 +58,7 @@ export async function createTestUser(
     email: user.email,
     firstName: user.firstName,
     lastName: user.lastName,
-    avatarDataUrl: user.avatarDataUrl,
+    avatarUrl: null,
     timeZone: user.timeZone,
     defaultTaskHour: user.defaultTaskHour,
     overdueReminderHour: user.overdueReminderHour,

@@ -19,7 +19,7 @@ Legenda statusu: ⬜ do zrobienia · 🔄 w toku · ✅ zrobione w kodzie (czeka
 | 1.3 | Błąd jednej wysyłki Telegram przerywa paczkę → duplikaty przypomnień u innych | Workflow n8n: obsługa błędu per element i raport `success:false`; klasyfikacja błędów trwałych po stronie API | ✅ |
 | 1.4 | Udostępnienie zadania firmowego jednej osobie odbiera dostęp całej firmie | Zachowanie widoczności `COMPANY` przy udostępnieniu | ✅ |
 | 1.5 | Google Calendar: chwilowy błąd trwale wyłącza synchronizację; nie da się odłączyć zepsutego połączenia; batch bez kolejności | Rozróżnienie błędów trwałych/chwilowych, odłączenie bez działającego tokenu, kolejka wg `last_synced_at` | ✅ |
-| 1.6 | Avatary (do 1,4 MB) w każdym żądaniu i wierszu listy; pulpit pobiera całe archiwum dla liczników | Avatary serwowane z endpointu z cache, listy bez data URL; liczniki przez `count()`, limit archiwum | ⬜ |
+| 1.6 | Avatary (do 1,4 MB) w każdym żądaniu i wierszu listy; pulpit pobiera całe archiwum dla liczników | Avatary serwowane z endpointu z cache, listy bez data URL; liczniki przez `count()`, limit archiwum | ✅ |
 
 ## Etap 2 — Średni priorytet
 
@@ -42,7 +42,7 @@ Legenda statusu: ⬜ do zrobienia · 🔄 w toku · ✅ zrobione w kodzie (czeka
 | # | Problem | Naprawa | Status |
 |---|---------|---------|--------|
 | 3.1 | `canAccessTask` nieużywane i rozbieżne z regułą SQL | Jedna reguła dostępu (SQL — udostępnienie daje dostęp niezależnie od widoczności, bo zadanie firmowe też można udostępnić osobie zewnętrznej), usunięcie martwego kodu | ⬜ |
-| 3.2 | `selectDistinct` z joinami do deduplikacji | Warunek dostępu przez `EXISTS` | ⬜ |
+| 3.2 | `selectDistinct` z joinami do deduplikacji | Warunek dostępu przez `EXISTS` | ✅ |
 | 3.3 | Podsumowania Telegram filtrowane w JS | Filtrowanie w SQL | ⬜ |
 | 3.4 | Wstrzymanie/wznowienie cyklu bez transakcji | Transakcja | ✅ |
 | 3.5 | Zmiana godziny przypomnień nie przelicza zaplanowanych | Przeliczenie zaplanowanych `OVERDUE_DAILY` | ⬜ |
