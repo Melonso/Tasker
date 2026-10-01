@@ -1,7 +1,7 @@
 import { and, eq, inArray } from "drizzle-orm";
 
 import type { AuthenticatedUser } from "@/auth/session";
-import { getDatabaseClient } from "@/db/client";
+import { getDatabaseClient, type DatabaseTransaction } from "@/db/client";
 import {
   auditEvents,
   reminders,
@@ -35,6 +35,10 @@ export interface CreateTaskInput {
 
 export class TaskInputError extends Error {}
 
+type StoredTask = typeof tasks.$inferSelect;
+
+const ACTIVE_TASK_STATUSES: Array<StoredTask["status"]> = ["OPEN", "WAITING"];
+
 export function dueAtFromInput(
   dueDate: string | undefined,
   dueTime: string | undefined,
@@ -46,9 +50,67 @@ export function dueAtFromInput(
   return zonedDateTimeToUtc({ year, month, day, hour, minute }, user.timeZone);
 }
 
-async function rolesForUser(userId: string) {
-  const { db } = getDatabaseClient();
-  const rows = await db
+/**
+ * Runs the work inside the caller's transaction, or opens a new one. Every task mutation goes
+ * through here so that a draft confirmation can apply the task change and its own state change
+ * atomically.
+ */
+function runInTransaction<T>(
+  tx: DatabaseTransaction | undefined,
+  work: (tx: DatabaseTransaction) => Promise<T>,
+) {
+  return tx ? work(tx) : getDatabaseClient().db.transaction(work);
+}
+
+/** Locks an active task row so that concurrent mutations are applied one after another. */
+async function lockActiveTask(tx: DatabaseTransaction, taskId: string) {
+  const [task] = await tx
+    .select()
+    .from(tasks)
+    .where(and(eq(tasks.id, taskId), inArray(tasks.status, ACTIVE_TASK_STATUSES)))
+    .limit(1)
+    .for("update");
+  return task ?? null;
+}
+
+async function lockEditableTask(
+  tx: DatabaseTransaction,
+  user: Pick<AuthenticatedUser, "id">,
+  taskId: string,
+  message: string,
+) {
+  const task = await lockActiveTask(tx, taskId);
+  if (!task || (task.authorId !== user.id && task.assigneeId !== user.id)) throw new TaskInputError(message);
+  return task;
+}
+
+async function lockAuthoredTask(
+  tx: DatabaseTransaction,
+  user: Pick<AuthenticatedUser, "id">,
+  taskId: string,
+  message: string,
+) {
+  const task = await lockActiveTask(tx, taskId);
+  if (!task || task.authorId !== user.id) throw new TaskInputError(message);
+  return task;
+}
+
+async function updateLockedTask(
+  tx: DatabaseTransaction,
+  task: StoredTask,
+  values: Partial<Omit<typeof tasks.$inferInsert, "id" | "version">>,
+  now = new Date(),
+) {
+  const [updated] = await tx
+    .update(tasks)
+    .set({ ...values, updatedAt: now, version: task.version + 1 })
+    .where(and(eq(tasks.id, task.id), eq(tasks.version, task.version)))
+    .returning({ id: tasks.id });
+  if (!updated) throw new Error("Zadanie zostało zmienione w trakcie zapisu.");
+}
+
+async function rolesForUser(tx: DatabaseTransaction, userId: string) {
+  const rows = await tx
     .select({ role: roles.key })
     .from(userRoles)
     .innerJoin(roles, eq(userRoles.roleId, roles.id))
@@ -56,43 +118,53 @@ async function rolesForUser(userId: string) {
   return rows.map((row) => row.role);
 }
 
-export async function createTaskForUser(user: AuthenticatedUser, input: CreateTaskInput) {
-  const { db } = getDatabaseClient();
-  const [assignee] = await db
-    .select({
-      id: users.id,
-      isActive: users.isActive,
-      timeZone: users.timeZone,
-      overdueReminderHour: users.overdueReminderHour,
-    })
+async function reminderSettingsForUser(tx: DatabaseTransaction, userId: string) {
+  const [settings] = await tx
+    .select({ timeZone: users.timeZone, overdueReminderHour: users.overdueReminderHour })
     .from(users)
-    .where(eq(users.id, input.assigneeId))
+    .where(eq(users.id, userId))
     .limit(1);
-  if (!assignee?.isActive) throw new TaskInputError("Wybrany wykonawca nie jest aktywnym użytkownikiem.");
-  if (user.roles.includes("EXTERNAL") && assignee.id !== user.id) {
-    throw new TaskInputError("Użytkownik zewnętrzny nie może delegować zadań innym osobom.");
-  }
+  if (!settings) throw new TaskInputError("Nie znaleziono wykonawcy zadania.");
+  return settings;
+}
 
-  const assigneeRoles = await rolesForUser(assignee.id);
-  if (input.visibility === "COMPANY" && !isCompanyUser(assigneeRoles)) {
-    throw new TaskInputError("Zadanie dla użytkownika zewnętrznego musi być prywatne lub udostępnione.");
-  }
-  if (input.recurrenceRule && !input.dueAt) {
-    throw new TaskInputError("Zadanie cykliczne musi mieć pierwszy termin.");
-  }
+/** Cancels pending reminders of the task and schedules a fresh set for the given due date. */
+async function replaceReminders(
+  tx: DatabaseTransaction,
+  taskId: string,
+  dueAt: Date | null,
+  settings: { timeZone: string; overdueReminderHour: number },
+  now: Date,
+) {
+  await tx
+    .update(reminders)
+    .set({ status: "CANCELED", updatedAt: now })
+    .where(and(eq(reminders.taskId, taskId), eq(reminders.status, "SCHEDULED")));
+  if (!dueAt) return;
+  const schedule = buildReminderSchedule({
+    dueAt,
+    now,
+    timeZone: settings.timeZone,
+    overdueReminderHour: settings.overdueReminderHour,
+  });
+  if (!schedule.length) return;
+  await tx
+    .insert(reminders)
+    .values(schedule.map((item) => ({ taskId, kind: item.kind, scheduledAt: item.scheduledAt })))
+    .onConflictDoUpdate({
+      target: [reminders.taskId, reminders.kind, reminders.scheduledAt],
+      set: { status: "SCHEDULED", attemptCount: 0, processedAt: null, lastError: null, updatedAt: now },
+    });
+}
 
-  const shareUserIds = [...new Set(input.shareUserIds ?? [])].filter(
-    (id) => id !== user.id && id !== assignee.id,
-  );
-  const shareTeamIds = [...new Set(input.shareTeamIds ?? [])];
-  if (input.visibility === "SHARED" && !shareUserIds.length && !shareTeamIds.length) {
-    throw new TaskInputError("Wybierz przynajmniej jedną osobę lub zespół do udostępnienia.");
-  }
-  if (user.roles.includes("EXTERNAL") && (shareUserIds.length || shareTeamIds.length)) {
-    throw new TaskInputError("Użytkownik zewnętrzny nie może udostępniać zadań dalej.");
-  }
+async function validateShareTargets(
+  tx: DatabaseTransaction,
+  user: Pick<AuthenticatedUser, "id">,
+  shareUserIds: string[],
+  shareTeamIds: string[],
+) {
   if (shareUserIds.length) {
-    const sharedUsers = await db
+    const sharedUsers = await tx
       .select({ id: users.id })
       .from(users)
       .where(and(inArray(users.id, shareUserIds), eq(users.isActive, true)));
@@ -101,7 +173,7 @@ export async function createTaskForUser(user: AuthenticatedUser, input: CreateTa
     }
   }
   if (shareTeamIds.length) {
-    const sharedTeams = await db
+    const sharedTeams = await tx
       .select({ id: teams.id })
       .from(teams)
       .where(and(inArray(teams.id, shareTeamIds), eq(teams.createdById, user.id)));
@@ -109,8 +181,50 @@ export async function createTaskForUser(user: AuthenticatedUser, input: CreateTa
       throw new TaskInputError("Co najmniej jeden wybrany zespół nie jest dostępny.");
     }
   }
+}
 
-  return db.transaction(async (tx) => {
+export async function createTaskForUser(
+  user: AuthenticatedUser,
+  input: CreateTaskInput,
+  transaction?: DatabaseTransaction,
+) {
+  return runInTransaction(transaction, async (tx) => {
+    const [assignee] = await tx
+      .select({
+        id: users.id,
+        isActive: users.isActive,
+        timeZone: users.timeZone,
+        overdueReminderHour: users.overdueReminderHour,
+      })
+      .from(users)
+      .where(eq(users.id, input.assigneeId))
+      .limit(1);
+    if (!assignee?.isActive) throw new TaskInputError("Wybrany wykonawca nie jest aktywnym użytkownikiem.");
+    if (user.roles.includes("EXTERNAL") && assignee.id !== user.id) {
+      throw new TaskInputError("Użytkownik zewnętrzny nie może delegować zadań innym osobom.");
+    }
+
+    const assigneeRoles = await rolesForUser(tx, assignee.id);
+    if (input.visibility === "COMPANY" && !isCompanyUser(assigneeRoles)) {
+      throw new TaskInputError("Zadanie dla użytkownika zewnętrznego musi być prywatne lub udostępnione.");
+    }
+    if (input.recurrenceRule && !input.dueAt) {
+      throw new TaskInputError("Zadanie cykliczne musi mieć pierwszy termin.");
+    }
+
+    const shareUserIds = [...new Set(input.shareUserIds ?? [])].filter(
+      (id) => id !== user.id && id !== assignee.id,
+    );
+    const shareTeamIds = [...new Set(input.shareTeamIds ?? [])];
+    if (input.visibility === "SHARED" && !shareUserIds.length && !shareTeamIds.length) {
+      throw new TaskInputError("Wybierz przynajmniej jedną osobę lub zespół do udostępnienia.");
+    }
+    if (user.roles.includes("EXTERNAL") && (shareUserIds.length || shareTeamIds.length)) {
+      throw new TaskInputError("Użytkownik zewnętrzny nie może udostępniać zadań dalej.");
+    }
+    await validateShareTargets(tx, user, shareUserIds, shareTeamIds);
+
+    const now = new Date();
     const [task] = await tx
       .insert(tasks)
       .values({
@@ -126,19 +240,7 @@ export async function createTaskForUser(user: AuthenticatedUser, input: CreateTa
       .returning({ id: tasks.id });
     if (!task) throw new Error("Task insert returned no identifier.");
 
-    if (input.dueAt) {
-      const schedule = buildReminderSchedule({
-        dueAt: input.dueAt,
-        now: new Date(),
-        timeZone: assignee.timeZone,
-        overdueReminderHour: assignee.overdueReminderHour,
-      });
-      if (schedule.length) {
-        await tx.insert(reminders).values(
-          schedule.map((item) => ({ taskId: task.id, kind: item.kind, scheduledAt: item.scheduledAt })),
-        );
-      }
-    }
+    await replaceReminders(tx, task.id, input.dueAt, assignee, now);
 
     if (input.recurrenceRule && input.dueAt) {
       await tx.insert(taskRecurrences).values({
@@ -165,55 +267,33 @@ export async function createTaskForUser(user: AuthenticatedUser, input: CreateTa
         dueAt: input.dueAt?.toISOString() ?? null,
         source: input.source ?? "WEB",
         recurrence: input.recurrenceRule ?? null,
-        sharedUsers: shareUserIds.length,
-        sharedTeams: shareTeamIds.length,
+        sharedUsers: input.visibility === "SHARED" ? shareUserIds.length : 0,
+        sharedTeams: input.visibility === "SHARED" ? shareTeamIds.length : 0,
       },
     });
     return task.id;
   });
 }
 
-export async function completeTaskForUser(user: AuthenticatedUser, taskId: string) {
-  const { db } = getDatabaseClient();
-  const [task] = await db
-    .select()
-    .from(tasks)
-    .where(and(eq(tasks.id, taskId), inArray(tasks.status, ["OPEN", "WAITING"])))
-    .limit(1);
-  if (!task || (task.authorId !== user.id && task.assigneeId !== user.id)) {
-    throw new TaskInputError("Nie masz uprawnień do zakończenia tego zadania.");
-  }
+export async function completeTaskForUser(
+  user: AuthenticatedUser,
+  taskId: string,
+  transaction?: DatabaseTransaction,
+) {
+  return runInTransaction(transaction, async (tx) => {
+    const task = await lockEditableTask(tx, user, taskId, "Nie masz uprawnień do zakończenia tego zadania.");
+    const [[recurrence], assignee, shares] = await Promise.all([
+      tx.select().from(taskRecurrences).where(eq(taskRecurrences.taskId, task.id)).limit(1),
+      reminderSettingsForUser(tx, task.assigneeId),
+      tx
+        .select({ userId: taskShares.userId, teamId: taskShares.teamId })
+        .from(taskShares)
+        .where(eq(taskShares.taskId, task.id)),
+    ]);
 
-  const [[recurrence], [assignee], shares] = await Promise.all([
-    db.select().from(taskRecurrences).where(eq(taskRecurrences.taskId, task.id)).limit(1),
-    db
-      .select({
-        timeZone: users.timeZone,
-        overdueReminderHour: users.overdueReminderHour,
-      })
-      .from(users)
-      .where(eq(users.id, task.assigneeId))
-      .limit(1),
-    db.select({ userId: taskShares.userId, teamId: taskShares.teamId }).from(taskShares).where(eq(taskShares.taskId, task.id)),
-  ]);
-  if (!assignee) throw new TaskInputError("Nie znaleziono wykonawcy zadania.");
-
-  return db.transaction(async (tx) => {
     const now = new Date();
-    await tx
-      .update(tasks)
-      .set({
-        status: "COMPLETED",
-        completedAt: now,
-        completedById: user.id,
-        updatedAt: now,
-        version: task.version + 1,
-      })
-      .where(eq(tasks.id, task.id));
-    await tx
-      .update(reminders)
-      .set({ status: "CANCELED", updatedAt: now })
-      .where(and(eq(reminders.taskId, task.id), eq(reminders.status, "SCHEDULED")));
+    await updateLockedTask(tx, task, { status: "COMPLETED", completedAt: now, completedById: user.id }, now);
+    await replaceReminders(tx, task.id, null, assignee, now);
     await tx.insert(auditEvents).values({ actorId: user.id, taskId: task.id, action: "TASK_COMPLETED" });
 
     let nextTaskId: string | null = null;
@@ -247,17 +327,7 @@ export async function completeTaskForUser(user: AuthenticatedUser, taskId: strin
           })),
         );
       }
-      const schedule = buildReminderSchedule({
-        dueAt: nextDueAt,
-        now,
-        timeZone: assignee.timeZone,
-        overdueReminderHour: assignee.overdueReminderHour,
-      });
-      if (schedule.length) {
-        await tx.insert(reminders).values(
-          schedule.map((item) => ({ taskId: nextTask.id, kind: item.kind, scheduledAt: item.scheduledAt })),
-        );
-      }
+      await replaceReminders(tx, nextTask.id, nextDueAt, assignee, now);
       await tx.insert(auditEvents).values({
         actorId: user.id,
         taskId: nextTask.id,
@@ -270,61 +340,33 @@ export async function completeTaskForUser(user: AuthenticatedUser, taskId: strin
   });
 }
 
-export async function rescheduleTaskForUser(user: AuthenticatedUser, taskId: string, newDueAt: Date) {
-  const { db } = getDatabaseClient();
-  const [task] = await db
-    .select()
-    .from(tasks)
-    .where(and(eq(tasks.id, taskId), inArray(tasks.status, ["OPEN", "WAITING"])))
-    .limit(1);
-  if (!task || (task.authorId !== user.id && task.assigneeId !== user.id)) {
-    throw new TaskInputError("Nie masz uprawnień do zmiany terminu tego zadania.");
-  }
-  const [[assignee], [recurrence]] = await Promise.all([
-    db
-      .select({ timeZone: users.timeZone, overdueReminderHour: users.overdueReminderHour })
-      .from(users)
-      .where(eq(users.id, task.assigneeId))
-      .limit(1),
-    db.select().from(taskRecurrences).where(eq(taskRecurrences.taskId, task.id)).limit(1),
-  ]);
-  if (!assignee) throw new TaskInputError("Nie znaleziono wykonawcy zadania.");
-  await db.transaction(async (tx) => {
-    await tx
-      .update(tasks)
-      .set({ dueAt: newDueAt, updatedAt: new Date(), version: task.version + 1 })
-      .where(eq(tasks.id, task.id));
+export async function rescheduleTaskForUser(
+  user: AuthenticatedUser,
+  taskId: string,
+  newDueAt: Date,
+  transaction?: DatabaseTransaction,
+) {
+  return runInTransaction(transaction, async (tx) => {
+    const task = await lockEditableTask(tx, user, taskId, "Nie masz uprawnień do zmiany terminu tego zadania.");
+    const [assignee, [recurrence]] = await Promise.all([
+      reminderSettingsForUser(tx, task.assigneeId),
+      tx.select().from(taskRecurrences).where(eq(taskRecurrences.taskId, task.id)).limit(1),
+    ]);
+    const now = new Date();
+    await updateLockedTask(tx, task, { dueAt: newDueAt }, now);
     await tx.insert(taskDueDateHistory).values({
       taskId: task.id,
       changedById: user.id,
       previousDueAt: task.dueAt,
       newDueAt,
     });
-    await tx
-      .update(reminders)
-      .set({ status: "CANCELED", updatedAt: new Date() })
-      .where(and(eq(reminders.taskId, task.id), eq(reminders.status, "SCHEDULED")));
-    const schedule = buildReminderSchedule({
-      dueAt: newDueAt,
-      now: new Date(),
-      timeZone: assignee.timeZone,
-      overdueReminderHour: assignee.overdueReminderHour,
-    });
-    if (schedule.length) {
-      await tx
-        .insert(reminders)
-        .values(schedule.map((item) => ({ taskId: task.id, kind: item.kind, scheduledAt: item.scheduledAt })))
-        .onConflictDoUpdate({
-          target: [reminders.taskId, reminders.kind, reminders.scheduledAt],
-          set: { status: "SCHEDULED", attemptCount: 0, processedAt: null, lastError: null, updatedAt: new Date() },
-        });
-    }
+    await replaceReminders(tx, task.id, newDueAt, assignee, now);
     if (recurrence) {
       await tx
         .update(taskRecurrences)
         .set({
           nextOccurrenceAt: nextRecurringDueAt(newDueAt, recurrence.rule, assignee.timeZone),
-          updatedAt: new Date(),
+          updatedAt: now,
         })
         .where(eq(taskRecurrences.taskId, task.id));
     }
@@ -334,37 +376,34 @@ export async function rescheduleTaskForUser(user: AuthenticatedUser, taskId: str
       action: "TASK_RESCHEDULED",
       metadata: { previousDueAt: task.dueAt?.toISOString() ?? null, newDueAt: newDueAt.toISOString() },
     });
+    return task.id;
   });
-  return task.id;
 }
 
 export async function shareTaskWithUser(
   user: AuthenticatedUser,
   taskId: string,
   targetUserId: string,
+  transaction?: DatabaseTransaction,
 ) {
-  const { db } = getDatabaseClient();
-  const [[task], [targetUser]] = await Promise.all([
-    db.select().from(tasks).where(and(eq(tasks.id, taskId), inArray(tasks.status, ["OPEN", "WAITING"]))).limit(1),
-    db.select({ id: users.id, isActive: users.isActive }).from(users).where(eq(users.id, targetUserId)).limit(1),
-  ]);
-  if (!task || task.authorId !== user.id) {
-    throw new TaskInputError("Tylko autor może udostępnić to zadanie.");
-  }
-  if (user.roles.includes("EXTERNAL")) {
-    throw new TaskInputError("Użytkownik zewnętrzny nie może udostępniać zadań dalej.");
-  }
-  if (!targetUser?.isActive) throw new TaskInputError("Wybrana osoba nie jest aktywnym użytkownikiem.");
-  if (targetUser.id === task.authorId || targetUser.id === task.assigneeId) {
-    throw new TaskInputError("Wybrana osoba ma już dostęp do zadania.");
-  }
+  return runInTransaction(transaction, async (tx) => {
+    const task = await lockAuthoredTask(tx, user, taskId, "Tylko autor może udostępnić to zadanie.");
+    if (user.roles.includes("EXTERNAL")) {
+      throw new TaskInputError("Użytkownik zewnętrzny nie może udostępniać zadań dalej.");
+    }
+    const [targetUser] = await tx
+      .select({ id: users.id, isActive: users.isActive })
+      .from(users)
+      .where(eq(users.id, targetUserId))
+      .limit(1);
+    if (!targetUser?.isActive) throw new TaskInputError("Wybrana osoba nie jest aktywnym użytkownikiem.");
+    if (targetUser.id === task.authorId || targetUser.id === task.assigneeId) {
+      throw new TaskInputError("Wybrana osoba ma już dostęp do zadania.");
+    }
 
-  await db.transaction(async (tx) => {
-    const now = new Date();
-    await tx
-      .update(tasks)
-      .set({ visibility: "SHARED", updatedAt: now, version: task.version + 1 })
-      .where(eq(tasks.id, task.id));
+    // A company task stays visible to the whole company; the share only adds one more person.
+    const nextVisibility = task.visibility === "PRIVATE" ? "SHARED" : task.visibility;
+    await updateLockedTask(tx, task, { visibility: nextVisibility });
     await tx
       .insert(taskShares)
       .values({ taskId: task.id, userId: targetUser.id })
@@ -373,84 +412,60 @@ export async function shareTaskWithUser(
       actorId: user.id,
       taskId: task.id,
       action: "TASK_SHARED_WITH_USER",
-      metadata: { targetUserId: targetUser.id, previousVisibility: task.visibility },
+      metadata: { targetUserId: targetUser.id, previousVisibility: task.visibility, newVisibility: nextVisibility },
     });
+    return task.id;
   });
-  return task.id;
 }
 
 export async function reassignTaskForUser(
   user: AuthenticatedUser,
   taskId: string,
   targetAssigneeId: string,
+  transaction?: DatabaseTransaction,
 ) {
-  const { db } = getDatabaseClient();
-  const [[task], [targetAssignee], [recurrence], shares] = await Promise.all([
-    db.select().from(tasks).where(and(eq(tasks.id, taskId), inArray(tasks.status, ["OPEN", "WAITING"]))).limit(1),
-    db
-      .select({
-        id: users.id,
-        isActive: users.isActive,
-        timeZone: users.timeZone,
-        overdueReminderHour: users.overdueReminderHour,
-      })
-      .from(users)
-      .where(eq(users.id, targetAssigneeId))
-      .limit(1),
-    db.select().from(taskRecurrences).where(eq(taskRecurrences.taskId, taskId)).limit(1),
-    db.select({ userId: taskShares.userId, teamId: taskShares.teamId }).from(taskShares).where(eq(taskShares.taskId, taskId)),
-  ]);
-  if (!task || task.authorId !== user.id) {
-    throw new TaskInputError("Tylko autor może przekazać to zadanie.");
-  }
-  if (user.roles.includes("EXTERNAL")) {
-    throw new TaskInputError("Użytkownik zewnętrzny nie może przekazywać zadań innym osobom.");
-  }
-  if (!targetAssignee?.isActive) throw new TaskInputError("Wybrany wykonawca nie jest aktywnym użytkownikiem.");
-  if (targetAssignee.id === task.assigneeId) throw new TaskInputError("Wybrana osoba jest już wykonawcą zadania.");
-  const targetRoles = await rolesForUser(targetAssignee.id);
-  if (task.visibility === "COMPANY" && !isCompanyUser(targetRoles)) {
-    throw new TaskInputError("Zadanie firmowe można przekazać wyłącznie użytkownikowi firmowemu.");
-  }
+  return runInTransaction(transaction, async (tx) => {
+    const task = await lockAuthoredTask(tx, user, taskId, "Tylko autor może przekazać to zadanie.");
+    if (user.roles.includes("EXTERNAL")) {
+      throw new TaskInputError("Użytkownik zewnętrzny nie może przekazywać zadań innym osobom.");
+    }
+    const [[targetAssignee], [recurrence], shares] = await Promise.all([
+      tx
+        .select({
+          id: users.id,
+          isActive: users.isActive,
+          timeZone: users.timeZone,
+          overdueReminderHour: users.overdueReminderHour,
+        })
+        .from(users)
+        .where(eq(users.id, targetAssigneeId))
+        .limit(1),
+      tx.select().from(taskRecurrences).where(eq(taskRecurrences.taskId, task.id)).limit(1),
+      tx
+        .select({ userId: taskShares.userId, teamId: taskShares.teamId })
+        .from(taskShares)
+        .where(eq(taskShares.taskId, task.id)),
+    ]);
+    if (!targetAssignee?.isActive) throw new TaskInputError("Wybrany wykonawca nie jest aktywnym użytkownikiem.");
+    if (targetAssignee.id === task.assigneeId) throw new TaskInputError("Wybrana osoba jest już wykonawcą zadania.");
+    const targetRoles = await rolesForUser(tx, targetAssignee.id);
+    if (task.visibility === "COMPANY" && !isCompanyUser(targetRoles)) {
+      throw new TaskInputError("Zadanie firmowe można przekazać wyłącznie użytkownikowi firmowemu.");
+    }
 
-  const remainingShares = shares.filter((share) => share.userId !== targetAssignee.id);
-  const nextVisibility = task.visibility === "SHARED" && remainingShares.length === 0 ? "PRIVATE" : task.visibility;
-  await db.transaction(async (tx) => {
+    const remainingShares = shares.filter((share) => share.userId !== targetAssignee.id);
+    const nextVisibility = task.visibility === "SHARED" && remainingShares.length === 0 ? "PRIVATE" : task.visibility;
     const now = new Date();
-    await tx
-      .update(tasks)
-      .set({
-        assigneeId: targetAssignee.id,
-        visibility: nextVisibility,
-        plannedForDate: null,
-        updatedAt: now,
-        version: task.version + 1,
-      })
-      .where(eq(tasks.id, task.id));
+    await updateLockedTask(
+      tx,
+      task,
+      { assigneeId: targetAssignee.id, visibility: nextVisibility, plannedForDate: null },
+      now,
+    );
     await tx
       .delete(taskShares)
       .where(and(eq(taskShares.taskId, task.id), eq(taskShares.userId, targetAssignee.id)));
-    await tx
-      .update(reminders)
-      .set({ status: "CANCELED", updatedAt: now })
-      .where(and(eq(reminders.taskId, task.id), eq(reminders.status, "SCHEDULED")));
-    if (task.dueAt) {
-      const schedule = buildReminderSchedule({
-        dueAt: task.dueAt,
-        now,
-        timeZone: targetAssignee.timeZone,
-        overdueReminderHour: targetAssignee.overdueReminderHour,
-      });
-      if (schedule.length) {
-        await tx
-          .insert(reminders)
-          .values(schedule.map((item) => ({ taskId: task.id, kind: item.kind, scheduledAt: item.scheduledAt })))
-          .onConflictDoUpdate({
-            target: [reminders.taskId, reminders.kind, reminders.scheduledAt],
-            set: { status: "SCHEDULED", attemptCount: 0, processedAt: null, lastError: null, updatedAt: now },
-          });
-      }
-    }
+    await replaceReminders(tx, task.id, task.dueAt, targetAssignee, now);
     if (recurrence && task.dueAt) {
       await tx
         .update(taskRecurrences)
@@ -471,6 +486,146 @@ export async function reassignTaskForUser(
         newVisibility: nextVisibility,
       },
     });
+    return task.id;
   });
-  return task.id;
+}
+
+export async function setTaskPlannedForDateForUser(
+  user: AuthenticatedUser,
+  taskId: string,
+  plannedForDate: string | null,
+) {
+  return runInTransaction(undefined, async (tx) => {
+    const task = await lockActiveTask(tx, taskId);
+    if (!task || task.assigneeId !== user.id) {
+      throw new TaskInputError("Do swojego planu możesz dodać tylko aktywne zadanie przypisane do Ciebie.");
+    }
+    await updateLockedTask(tx, task, { plannedForDate });
+    await tx.insert(auditEvents).values({
+      actorId: user.id,
+      taskId: task.id,
+      action: plannedForDate ? "TASK_PLANNED_FOR_TODAY" : "TASK_REMOVED_FROM_TODAY_PLAN",
+      metadata: { plannedForDate },
+    });
+    return task.id;
+  });
+}
+
+export async function setTaskWaitingForUser(user: AuthenticatedUser, taskId: string, reason: string) {
+  return runInTransaction(undefined, async (tx) => {
+    const task = await lockEditableTask(tx, user, taskId, "Nie masz uprawnień do zmiany tego zadania.");
+    await updateLockedTask(tx, task, { status: "WAITING", waitingReason: reason });
+    await tx.insert(auditEvents).values({
+      actorId: user.id,
+      taskId: task.id,
+      action: "TASK_WAITING",
+      metadata: { reason },
+    });
+    return task.id;
+  });
+}
+
+export async function resumeTaskForUser(user: AuthenticatedUser, taskId: string) {
+  return runInTransaction(undefined, async (tx) => {
+    const task = await lockEditableTask(tx, user, taskId, "Nie masz uprawnień do zmiany tego zadania.");
+    if (task.status !== "WAITING") throw new TaskInputError("To zadanie nie jest wstrzymane.");
+    await updateLockedTask(tx, task, { status: "OPEN", waitingReason: null });
+    await tx.insert(auditEvents).values({ actorId: user.id, taskId: task.id, action: "TASK_RESUMED" });
+    return task.id;
+  });
+}
+
+export async function cancelTaskForUser(user: AuthenticatedUser, taskId: string) {
+  return runInTransaction(undefined, async (tx) => {
+    const task = await lockAuthoredTask(tx, user, taskId, "Tylko autor może anulować zadanie.");
+    const now = new Date();
+    await updateLockedTask(tx, task, { status: "CANCELED", waitingReason: null }, now);
+    await tx
+      .update(reminders)
+      .set({ status: "CANCELED", updatedAt: now })
+      .where(and(eq(reminders.taskId, task.id), eq(reminders.status, "SCHEDULED")));
+    await tx.insert(auditEvents).values({ actorId: user.id, taskId: task.id, action: "TASK_CANCELED" });
+    return task.id;
+  });
+}
+
+export async function updateTaskRecurrenceForUser(
+  user: AuthenticatedUser,
+  taskId: string,
+  rule: RecurrenceRule,
+) {
+  return runInTransaction(undefined, async (tx) => {
+    const task = await lockAuthoredTask(tx, user, taskId, "Tylko autor może zmienić cykl zadania.");
+    if (!task.dueAt) throw new TaskInputError("Zadanie cykliczne musi mieć termin.");
+    const assignee = await reminderSettingsForUser(tx, task.assigneeId);
+    const now = new Date();
+    const nextOccurrenceAt = nextRecurringDueAt(task.dueAt, rule, assignee.timeZone);
+    await tx
+      .insert(taskRecurrences)
+      .values({ taskId: task.id, rule, nextOccurrenceAt, isPaused: false })
+      .onConflictDoUpdate({
+        target: taskRecurrences.taskId,
+        set: { rule, nextOccurrenceAt, isPaused: false, updatedAt: now },
+      });
+    await updateLockedTask(tx, task, {}, now);
+    await tx.insert(auditEvents).values({
+      actorId: user.id,
+      taskId: task.id,
+      action: "TASK_RECURRENCE_UPDATED",
+      metadata: { rule },
+    });
+    return task.id;
+  });
+}
+
+export async function setTaskRecurrencePausedForUser(user: AuthenticatedUser, taskId: string, paused: boolean) {
+  return runInTransaction(undefined, async (tx) => {
+    const task = await lockAuthoredTask(tx, user, taskId, "Tylko autor może wstrzymać cykl zadania.");
+    const [updated] = await tx
+      .update(taskRecurrences)
+      .set({ isPaused: paused, updatedAt: new Date() })
+      .where(eq(taskRecurrences.taskId, task.id))
+      .returning({ taskId: taskRecurrences.taskId });
+    if (!updated) throw new TaskInputError("To zadanie nie ma ustawionego cyklu.");
+    await tx.insert(auditEvents).values({
+      actorId: user.id,
+      taskId: task.id,
+      action: paused ? "TASK_RECURRENCE_PAUSED" : "TASK_RECURRENCE_RESUMED",
+    });
+    return task.id;
+  });
+}
+
+export async function updateTaskSharesForUser(
+  user: AuthenticatedUser,
+  taskId: string,
+  userIds: string[],
+  teamIds: string[],
+) {
+  return runInTransaction(undefined, async (tx) => {
+    const task = await lockAuthoredTask(tx, user, taskId, "Tylko autor może zmienić udostępnienie.");
+    if (user.roles.includes("EXTERNAL")) {
+      throw new TaskInputError("Użytkownik zewnętrzny nie może udostępniać zadań dalej.");
+    }
+    if (task.visibility !== "SHARED") throw new TaskInputError("To zadanie nie ma widoczności udostępnionej.");
+    const uniqueUserIds = [...new Set(userIds)].filter((id) => id !== task.authorId && id !== task.assigneeId);
+    const uniqueTeamIds = [...new Set(teamIds)];
+    if (!uniqueUserIds.length && !uniqueTeamIds.length) {
+      throw new TaskInputError("Wybierz przynajmniej jedną osobę lub zespół.");
+    }
+    await validateShareTargets(tx, user, uniqueUserIds, uniqueTeamIds);
+    await tx.delete(taskShares).where(eq(taskShares.taskId, task.id));
+    await tx.insert(taskShares).values([
+      ...uniqueUserIds.map((userId) => ({ taskId: task.id, userId })),
+      ...uniqueTeamIds.map((teamId) => ({ taskId: task.id, teamId })),
+    ]);
+    await updateLockedTask(tx, task, {});
+    await tx.insert(auditEvents).values({
+      actorId: user.id,
+      taskId: task.id,
+      action: "TASK_SHARES_UPDATED",
+      metadata: { sharedUsers: uniqueUserIds.length, sharedTeams: uniqueTeamIds.length },
+    });
+    return task.id;
+  });
 }
