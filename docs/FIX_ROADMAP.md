@@ -18,7 +18,7 @@ Legenda statusu: ⬜ do zrobienia · 🔄 w toku · ✅ zrobione w kodzie (czeka
 | 1.2 | Potwierdzanie szkicu nieatomowe: możliwy duplikat zadania i szkice zawieszone w `PROCESSING` | Operacja na zadaniu i zmiana stanu szkicu w jednej transakcji; odzyskiwanie zawieszonych szkiców | ✅ |
 | 1.3 | Błąd jednej wysyłki Telegram przerywa paczkę → duplikaty przypomnień u innych | Workflow n8n: obsługa błędu per element i raport `success:false`; klasyfikacja błędów trwałych po stronie API | ✅ |
 | 1.4 | Udostępnienie zadania firmowego jednej osobie odbiera dostęp całej firmie | Zachowanie widoczności `COMPANY` przy udostępnieniu | ✅ |
-| 1.5 | Google Calendar: chwilowy błąd trwale wyłącza synchronizację; nie da się odłączyć zepsutego połączenia; batch bez kolejności | Rozróżnienie błędów trwałych/chwilowych, odłączenie bez działającego tokenu, kolejka wg `last_synced_at` | ⬜ |
+| 1.5 | Google Calendar: chwilowy błąd trwale wyłącza synchronizację; nie da się odłączyć zepsutego połączenia; batch bez kolejności | Rozróżnienie błędów trwałych/chwilowych, odłączenie bez działającego tokenu, kolejka wg `last_synced_at` | ✅ |
 | 1.6 | Avatary (do 1,4 MB) w każdym żądaniu i wierszu listy; pulpit pobiera całe archiwum dla liczników | Avatary serwowane z endpointu z cache, listy bez data URL; liczniki przez `count()`, limit archiwum | ⬜ |
 
 ## Etap 2 — Średni priorytet

@@ -14,6 +14,6 @@ export async function POST() {
     .from(googleConnections)
     .where(eq(googleConnections.userId, user.id))
     .limit(1);
-  if (connection) await removeGoogleCalendarConnection(connection);
-  return NextResponse.json({ status: "DISCONNECTED" });
+  const result = connection ? await removeGoogleCalendarConnection(connection) : { remainingEvents: 0 };
+  return NextResponse.json({ status: "DISCONNECTED", remainingEvents: result.remainingEvents });
 }
