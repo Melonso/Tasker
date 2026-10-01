@@ -201,7 +201,7 @@ Migracja `0007_shallow_captain_midlands.sql` dodaje nullable pole `tasks.planned
 
 ### Wdrożenie poprawek z code review (przygotowane, jeszcze niewykonane)
 
-Gałąź `claude/relaxed-gauss-23rram` zawiera poprawki opisane w `docs/FIX_ROADMAP.md`. Wdrożenie wykonujemy jednorazowo, po zakończeniu wszystkich punktów, w tej kolejności:
+Gałąź `claude/relaxed-gauss-23rram` zawiera poprawki opisane w `docs/FIX_ROADMAP.md`. Pełna instrukcja dla wykonującego wdrożenie, łącznie z obowiązkowym scaleniem z kodem produkcyjnym spoza GitHuba (notatki, `taskScope`), znajduje się w `docs/DEPLOY_HANDOFF_2026-10-01.md`. Wdrożenie wykonujemy jednorazowo, po zakończeniu wszystkich punktów, w tej kolejności:
 
 1. Wykonać i zweryfikować backup: `deploy/backup-tasker.sh`.
 2. Sprawdzić, że chroniony `.env` zawiera jawne `SESSION_SECRET` oraz `INTEGRATION_ENCRYPTION_KEY` (np. `grep -c '^SESSION_SECRET=' .env`, bez wyświetlania wartości). Nowa wersja odmawia startu w produkcji, jeżeli którejś brakuje — dotychczas po cichu używała wartości deweloperskich.

@@ -64,6 +64,7 @@ Legenda statusu: ⬜ do zrobienia · 🔄 w toku · ✅ zrobione w kodzie (czeka
 
 | # | Zadanie | Status |
 |---|---------|--------|
+| 4.0 | Scalenie z kodem produkcyjnym spoza GitHuba (notatki, `taskScope`) — szczegóły w `docs/DEPLOY_HANDOFF_2026-10-01.md` | ⬜ |
 | 4.1 | Aktualizacja `README.md`, `docs/IMPLEMENTATION_PLAN.md`, `docs/INTEGRATION_API.md`, `docs/DEPLOYMENT.md` (zmiany oznaczone ⏳; po wdrożeniu usunąć oznaczenia i dopisać datę) | 🔄 |
 | 4.2 | Backup produkcji, wdrożenie aplikacji i migracji; zapytanie kontrolne o osoby zewnętrzne w zespołach firmowych (3.12) | ⬜ |
 | 4.3 | Aktualizacja aktywnych workflow n8n (powiadomienia, Telegram + AI) po walidacji przez n8n MCP; zmiana nazwy poświadczenia (3.10) | ⬜ |
