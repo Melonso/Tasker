@@ -52,9 +52,9 @@ Data bazowa ustaleń: 2026-08-28. Strefa czasowa pierwszego wdrożenia: `Europe/
 46. Rodzaj zadania `PRIVATE`/`COMPANY` jest odrębną osią od widoczności `PRIVATE`/`COMPANY`/`SHARED`. Każdy widok webowy pokazuje pionowo najpierw sekcję firmową, potem prywatną. Telegram rozpoznaje jawne zwroty „zadanie firmowe” i „zadanie prywatne”; brak rodzaju oznacza prywatne. `/zadania` zachowuje kategorie statusów wewnątrz obu rodzajów i podaje autora każdego zadania.
 47. Do zespołu dołącza Paulina Grzankowska z rolą `COMPANY_MEMBER` (`paulina.grzankowska@dpkomis.pl`). Posiada standardowy dostęp użytkownika firmowego do spraw własnych, firmowych i bezpośrednio udostępnionych.
 
-48. Po przekazaniu zadania dotychczasowy wykonawca zachowuje dostęp przez bezpośrednie udostępnienie, chyba że był jednocześnie autorem. Zadanie prywatne otrzymuje wtedy widoczność `SHARED`, a zadanie firmowe pozostaje `COMPANY` (decyzja z 2026-10-01; ⏳ czeka na wdrożenie).
-49. Do zespołu firmowego nie można dodać użytkownika zewnętrznego. Osoby zewnętrzne trafiają wyłącznie do zespołów utworzonych z opcją „Zespół może zawierać osoby zewnętrzne” (decyzja z 2026-10-01; ⏳ czeka na wdrożenie).
-50. Udostępnienie zadania firmowego konkretnej osobie nie zawęża jego widoczności — pozostali pracownicy zachowują dostęp, a wskazana osoba otrzymuje dodatkowy (⏳ czeka na wdrożenie).
+48. Po przekazaniu zadania dotychczasowy wykonawca zachowuje dostęp przez bezpośrednie udostępnienie, chyba że był jednocześnie autorem. Zadanie prywatne otrzymuje wtedy widoczność `SHARED`, a zadanie firmowe pozostaje `COMPANY` (decyzja z 2026-10-01; wdrożone 2026-10-01).
+49. Do zespołu firmowego nie można dodać użytkownika zewnętrznego. Osoby zewnętrzne trafiają wyłącznie do zespołów utworzonych z opcją „Zespół może zawierać osoby zewnętrzne” (decyzja z 2026-10-01; wdrożone 2026-10-01).
+50. Udostępnienie zadania firmowego konkretnej osobie nie zawęża jego widoczności — pozostali pracownicy zachowują dostęp, a wskazana osoba otrzymuje dodatkowy (wdrożone 2026-10-01).
 
 ## Użytkownicy pilotażowi i role
 

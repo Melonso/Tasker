@@ -239,9 +239,9 @@ Migracja `0007_shallow_captain_midlands.sql` dodaje nullable pole `tasks.planned
 
 Migracja `0008_famous_trauma.sql` jest rozszerzająca: dodaje wyłącznie nowe typy, tabele, indeksy i nullable `notifications.target_path`. Starsza wersja aplikacji ignoruje te elementy, dlatego rollback obrazu nie wymaga cofania migracji; przed jej uruchomieniem nadal obowiązuje pełny backup PostgreSQL.
 
-### Wdrożenie poprawek z code review (przygotowane, jeszcze niewykonane)
+### Wdrożenie poprawek z code review (wykonane 2026-10-01)
 
-Gałąź `claude/relaxed-gauss-23rram` zawiera poprawki opisane w `docs/FIX_ROADMAP.md`. Pełna instrukcja dla wykonującego wdrożenie, łącznie z obowiązkowym scaleniem z kodem produkcyjnym spoza GitHuba (notatki, `taskScope`), znajduje się w `docs/DEPLOY_HANDOFF_2026-10-01.md`. Wdrożenie wykonujemy jednorazowo, po zakończeniu wszystkich punktów, w tej kolejności:
+Gałąź `claude/relaxed-gauss-23rram` zawiera poprawki opisane w `docs/FIX_ROADMAP.md`. Pełna instrukcja dla wykonującego wdrożenie, łącznie z obowiązkowym scaleniem z kodem produkcyjnym spoza GitHuba (notatki, `taskScope`), znajduje się w `docs/DEPLOY_HANDOFF_2026-10-01.md`. Wdrożenie wykonano po scaleniu stanu produkcji `7db1494` z poprawkami (`1156c36`) i korekcie kontekstu Docker (`e03389b`). Poniższa lista opisuje kolejność procedury:
 
 1. Wykonać i zweryfikować backup: `deploy/backup-tasker.sh`.
 2. Sprawdzić, że chroniony `.env` zawiera jawne `SESSION_SECRET` oraz `INTEGRATION_ENCRYPTION_KEY` (np. `grep -c '^SESSION_SECRET=' .env`, bez wyświetlania wartości). Nowa wersja odmawia startu w produkcji, jeżeli którejś brakuje — dotychczas po cichu używała wartości deweloperskich.
@@ -307,4 +307,15 @@ Kontekst Docker wyklucza `.secrets`, `backups`, `logs`, `.tmp`, `.codex-remote-a
 
 Odnaleziono niezacommitowany lokalny kod produkcyjny: Notatki, rodzaj zadania (`scope` / `taskScope`), kontrakt integracyjny 6, podział list firmowe/prywatne, liczniki nawigacji, powiadomienia o dostępie i poprawki mobilne. Odczyt produkcji potwierdził 10 migracji (0000–0009); czasy journalu i sumy SHA-256 wszystkich plików SQL odpowiadają tabeli `drizzle.__drizzle_migrations`. Produkcja zawiera `notes`, `note_reminder_schedules` oraz `tasks.scope`. Wszystkie 141 plików w `src`, `drizzle` i `n8n` odpowiadają lokalnej kopii poza rozszerzonym lokalnie `drafts.test.ts`. Katalog produkcyjny nie jest repozytorium Git; kod przekazywano jako archiwum. Stan produkcyjny zapisano na `main` jako `7db1494`.
 
-Scalenie zachowuje rodzaj zadania i powiadomienia o dostępie we wspólnych transakcjach, produkcyjne filtry udostępnień w widokach osobistych przez `EXISTS`, liczniki nawigacji oraz krok przypomnień notatek w izolowanym skanie workera. Zmiana rodzaju i priorytetu korzysta z blokady aktywnego zadania i obsługi błędu w istniejącym kontrolowanym selekcie; zakończone i anulowane zadania nie podlegają tym mutacjom. Migrację logowania przenumerowano na `0010_login_attempts.sql`; zawiera tylko tabelę i dwa indeksy. Weryfikacja 2026-10-01: frozen install, typecheck, lint, 85 testów jednostkowych, 28 integracyjnych oraz build przeszły. Testy potwierdzają zachowanie `COMPANY` niezależnie od prywatnej widoczności przy wyścigu zatwierdzeń szkicu i zakończeń cyklu. Wdrożenie poprawek jeszcze niewykonane.
+Scalenie zachowuje rodzaj zadania i powiadomienia o dostępie we wspólnych transakcjach, produkcyjne filtry udostępnień w widokach osobistych przez `EXISTS`, liczniki nawigacji oraz krok przypomnień notatek w izolowanym skanie workera. Zmiana rodzaju i priorytetu korzysta z blokady aktywnego zadania i obsługi błędu w istniejącym kontrolowanym selekcie; zakończone i anulowane zadania nie podlegają tym mutacjom. Migrację logowania przenumerowano na `0010_login_attempts.sql`; zawiera tylko tabelę i dwa indeksy. Weryfikacja 2026-10-01: frozen install, typecheck, lint, 85 testów jednostkowych, 28 integracyjnych oraz build przeszły. Testy potwierdzają zachowanie `COMPANY` niezależnie od prywatnej widoczności przy wyścigu zatwierdzeń szkicu i zakończeń cyklu. Aplikacja i migracja `0010` wdrożone z commita `e03389be2ee5cdaa3587bcdd393d8f5542b03216`; oba workflow n8n opublikowane po walidacji.
+
+### Wynik wdrożenia 2026-10-01
+
+- Backup `tasker-20261001T081910Z.dump` (2 225 104 bajty), pełne odtworzenie kontrolne: 28 tabel. Kopia kodu: `backups/tasker-source-pre-review-20261001.tar.gz`.
+- Rollback: `tasker-prod-web:pre-review-20261001`, `tasker-prod-runner:pre-review-20261001`, `tasker-prod-migrate:pre-review-20261001`. Nie cofać migracji.
+- Zweryfikowano obecność obu sekretów; zapytanie o osoby zewnętrzne w zespołach firmowych zwróciło 0 wierszy.
+- Przypomnienia n8n: `b9cd9ee0-6b66-42e7-8c5c-af86d4a0c6d2`; Telegram + AI: `3a14174f-0e03-43b7-8907-880fbf167c34`. Kopie obu poprzednich grafów zapisano w `backups/*-before.json` i sprawdzono SHA-256.
+- Credential `5IbWlDjmEVAQkvzT` nazwano „Tasker Telegram Bot”; powiązania zachowano. Źródło AI odzwierciedla aktualne parametry produkcyjne (w tym `gpt-5.6-luna` i `OpenAi account`), połączenia i credentials.
+- Pierwsza budowa wykazała brak wykluczenia `.secrets` i `backups`. Nie uruchomiono jej obrazów; poprawiono `.dockerignore`, zweryfikowano rzeczywisty kontekst audytem `COPY`, przebudowano obrazy. Usunięto konkretnie cztery wpisy cache tej budowy (292,3 MB), a ich brak sprawdzono ponownie; pozostały cache i obrazy rollbacku zachowano.
+- Grupa wizualna przypomnień obejmuje pobranie i rozdzielenie dostaw; rozgałęzienia wysyłki i raportów pozostają poza nią, zgodnie z walidacją n8n.
+- Testy i ograniczenia smoke testu: `docs/DEPLOY_REPORT_2026-10-01.md`.

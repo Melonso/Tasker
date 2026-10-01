@@ -2,7 +2,8 @@
 
 Warstwa integracyjna służy do połączenia z n8n bez udostępniania bazy danych. Jej publiczny adres bazowy to `https://tasker.dpkomis.pl/api/integrations`.
 
-> ⏳ Fragmenty oznaczone tym symbolem opisują poprawki z code review z 2026-10-01. Są zaimplementowane i przetestowane w gałęzi `claude/relaxed-gauss-23rram`, ale czekają na wspólne wdrożenie produkcyjne (`docs/FIX_ROADMAP.md`). Zmiany są zgodne wstecz — kontrakt pozostaje w wersji `4`.
+
+Poprawki z code review wdrożono 2026-10-01 wraz z zachowaniem notatek i rodzaju zadania. Aktualny kontrakt produkcyjny ma wersję `6`.
 
 ## Uwierzytelnianie
 
@@ -37,7 +38,7 @@ Content-Type: application/json
 }
 ```
 
-Kod jest przechowywany wyłącznie jako hash, działa raz i nie może przejąć Telegrama już przypisanego do innego konta. ⏳ Także równoczesna próba połączenia tego samego Telegrama z dwoma kontami kończy się odpowiedzią `409 TELEGRAM_ACCOUNT_ALREADY_LINKED`, a nie błędem serwera.
+Kod jest przechowywany wyłącznie jako hash, działa raz i nie może przejąć Telegrama już przypisanego do innego konta. Także równoczesna próba połączenia tego samego Telegrama z dwoma kontami kończy się odpowiedzią `409 TELEGRAM_ACCOUNT_ALREADY_LINKED`, a nie błędem serwera.
 
 ## Notatki z Telegrama
 
@@ -95,7 +96,7 @@ Content-Type: application/json
 
 `sourceEventId` zapewnia idempotencję ponowionych aktualizacji Telegrama. `taskScope` przyjmuje `PRIVATE` albo `COMPANY` i określa sekcję zadania niezależnie od dostępu; brak pola zachowuje kompatybilny domyślny rodzaj `PRIVATE`. API dodatkowo rozpoznaje jawne słowa „firmowe” i „prywatne” w `sourceText`, więc polecenia `dodaj zadanie firmowe…` i `dodaj zadanie prywatne…` nie zależą wyłącznie od wyniku modelu AI. `assignee` oznacza wyłącznie głównego wykonawcę, natomiast opcjonalne `shareWith` oznacza osobę otrzymującą dostęp bez zmiany wykonawcy. Podanie `shareWith` wymusza widoczność `SHARED`, ale nie zmienia `taskScope`; zatwierdzenie tworzy zadanie i wpis `task_shares` w jednej transakcji. Tasker sam rozpoznaje obie osoby wśród użytkowników dostępnych autorowi. Brak lub niejednoznaczna osoba zwraca stan `NEEDS_CLARIFICATION`. Szkic wygasa po 30 minutach.
 
-⏳ `dueDate` musi być istniejącą datą kalendarzową, a `dueTime` godziną 00:00–23:59; inne wartości zwracają `400 INVALID_REQUEST`.
+`dueDate` musi być istniejącą datą kalendarzową, a `dueTime` godziną 00:00–23:59; inne wartości zwracają `400 INVALID_REQUEST`.
 
 Szkic z `visibility: SHARED` bez `shareWith` nigdy nie otrzymuje stanu `DRAFT`: API prosi o wskazanie odbiorcy, dzięki czemu taki szkic nie może zostać zatwierdzony ręcznie ani automatycznie. Podgląd kompletnego szkicu pokazuje oddzielnie wykonawcę oraz osobę otrzymującą dostęp.
 
@@ -119,7 +120,7 @@ Udostępnienie zachowuje obecnego wykonawcę i dodaje wskazanej osobie dostęp. 
 { "telegramUserId": "123456789", "sourceEventId": "telegram-update-98770", "intent": "REASSIGN_TASK", "taskQuery": "polcard", "assignee": "Michał Murawski" }
 ```
 
-Obie operacje może wykonać wyłącznie autor aktywnego zadania i obie zawsze wymagają ręcznego zatwierdzenia. `SHARE_TASK` zachowuje wykonawcę i tworzy bezpośrednie udostępnienie; zadanie prywatne otrzymuje widoczność `SHARED`. ⏳ Zadanie firmowe zachowuje widoczność `COMPANY` — wskazana osoba (także zewnętrzna) otrzymuje dodatkowy dostęp, a pozostali pracownicy go nie tracą. `REASSIGN_TASK` zmienia wykonawcę (⏳ dotychczasowy wykonawca zachowuje dostęp przez bezpośrednie udostępnienie, chyba że jest autorem), czyści jego osobiste przypięcie do planu dnia, przebudowuje przypomnienia według strefy i preferencji nowego wykonawcy oraz pozwala workerowi Google Calendar usunąć stare i utworzyć nowe powiązanie przy kolejnym przebiegu synchronizacji.
+Obie operacje może wykonać wyłącznie autor aktywnego zadania i obie zawsze wymagają ręcznego zatwierdzenia. `SHARE_TASK` zachowuje wykonawcę i tworzy bezpośrednie udostępnienie; zadanie prywatne otrzymuje widoczność `SHARED`. Zadanie firmowe zachowuje widoczność `COMPANY` — wskazana osoba (także zewnętrzna) otrzymuje dodatkowy dostęp, a pozostali pracownicy go nie tracą. `REASSIGN_TASK` zmienia wykonawcę (dotychczasowy wykonawca zachowuje dostęp przez bezpośrednie udostępnienie, chyba że jest autorem), czyści jego osobiste przypięcie do planu dnia, przebudowuje przypomnienia według strefy i preferencji nowego wykonawcy oraz pozwala workerowi Google Calendar usunąć stare i utworzyć nowe powiązanie przy kolejnym przebiegu synchronizacji.
 
 Po zatwierdzeniu wskazana osoba otrzymuje powiadomienie w aplikacji oraz, jeśli kanał jest włączony i połączony, przez Web Push i Telegram. Ta sama zasada działa przy utworzeniu zadania z innym wykonawcą albo `shareWith`.
 
@@ -183,7 +184,7 @@ Content-Type: application/json
 
 Tasker ponownie sprawdza właściciela szkicu i uprawnienia. Dopiero to wywołanie tworzy zadanie, audyt oraz harmonogram przypomnień. Ponowne potwierdzenie zakończonego szkicu zwraca ten sam identyfikator zadania.
 
-⏳ Operacja na zadaniu i zmiana stanu szkicu wykonują się w jednej transakcji z blokadą wiersza szkicu. Ręczne potwierdzenie, anulowanie i automatyczne zatwierdzenie nie mogą więc zastosować tego samego szkicu dwa razy, a odrzucenie operacji (`422 TASK_INPUT_REJECTED`) wycofuje wszystkie zmiany i zostawia szkic w stanie `DRAFT`. Pozostałe odpowiedzi: `409 DRAFT_NEEDS_CLARIFICATION`, `409 DRAFT_CANCELED`, `410 DRAFT_EXPIRED`, `404 DRAFT_NOT_FOUND`. Szkice pozostawione w przestarzałym stanie `PROCESSING` przez poprzednią wersję przepływu są po 15 minutach oznaczane jako `EXPIRED`.
+Operacja na zadaniu i zmiana stanu szkicu wykonują się w jednej transakcji z blokadą wiersza szkicu. Ręczne potwierdzenie, anulowanie i automatyczne zatwierdzenie nie mogą więc zastosować tego samego szkicu dwa razy, a odrzucenie operacji (`422 TASK_INPUT_REJECTED`) wycofuje wszystkie zmiany i zostawia szkic w stanie `DRAFT`. Pozostałe odpowiedzi: `409 DRAFT_NEEDS_CLARIFICATION`, `409 DRAFT_CANCELED`, `410 DRAFT_EXPIRED`, `404 DRAFT_NOT_FOUND`. Szkice pozostawione w przestarzałym stanie `PROCESSING` przez poprzednią wersję przepływu są po 15 minutach oznaczane jako `EXPIRED`.
 
 ## Anulowanie szkicu
 
@@ -218,19 +219,19 @@ Content-Type: application/json
 { "deliveryId": "<uuid>", "success": false, "error": "Forbidden: bot was blocked by the user" }
 ```
 
-Odpowiedź zawiera `status` (`SENT`, `FAILED` albo ⏳ `SKIPPED`) oraz ⏳ `retry`. Błąd chwilowy (`FAILED`) jest ponawiany z wykładniczym odstępem, maksymalnie 5 razy.
+Odpowiedź zawiera `status` (`SENT`, `FAILED` albo `SKIPPED`) oraz `retry`. Błąd chwilowy (`FAILED`) jest ponawiany z wykładniczym odstępem, maksymalnie 5 razy.
 
-⏳ Błędy trwałe — zablokowany bot, usunięty czat, dezaktywowane konto — oznaczają dostawę jako `SKIPPED` bez ponawiania i ustawiają połączenie Telegram użytkownika w stan `NEEDS_ATTENTION`; ponowne połączenie kodem z ustawień przywraca wysyłkę. Dostawy do użytkowników bez aktywnego połączenia są przy pobieraniu oznaczane jako `SKIPPED`, zamiast czekać bezterminowo.
+Błędy trwałe — zablokowany bot, usunięty czat, dezaktywowane konto — oznaczają dostawę jako `SKIPPED` bez ponawiania i ustawiają połączenie Telegram użytkownika w stan `NEEDS_ATTENTION`; ponowne połączenie kodem z ustawień przywraca wysyłkę. Dostawy do użytkowników bez aktywnego połączenia są przy pobieraniu oznaczane jako `SKIPPED`, zamiast czekać bezterminowo.
 
-⏳ Workflow obsługuje błąd każdej wiadomości osobno (wyjście błędu węzła Telegram → raport `success: false`). Nieudana wysyłka do jednej osoby nie przerywa paczki i nie powoduje ponownego wysłania wiadomości, które już dotarły do innych.
+Workflow obsługuje błąd każdej wiadomości osobno (wyjście błędu węzła Telegram → raport `success: false`). Nieudana wysyłka do jednej osoby nie przerywa paczki i nie powoduje ponownego wysłania wiadomości, które już dotarły do innych.
 
 ## Zasady dla workflow AI
 
 - Model przygotowuje dane, ale nie otrzymuje dostępu do bazy.
 - Przy zakończeniu i przesunięciu model przekazuje jedynie charakterystyczne słowa w `taskQuery`; pełną listę dozwolonych aktywnych zadań pobiera i dopasowuje dopiero Tasker po uwierzytelnieniu użytkownika.
-- Kompletny szkic można zatwierdzić lub anulować ręcznie. ⏳ Podgląd szkicu pokazuje priorytet i widoczność po polsku. Brak reakcji powoduje automatyczne zatwierdzenie po 10 minutach tylko przy tworzeniu zadania. Zakończenie i przesunięcie terminu zawsze wymagają ręcznego potwierdzenia.
+- Kompletny szkic można zatwierdzić lub anulować ręcznie. Podgląd szkicu pokazuje priorytet i widoczność po polsku. Brak reakcji powoduje automatyczne zatwierdzenie po 10 minutach tylko przy tworzeniu zadania. Zakończenie i przesunięcie terminu zawsze wymagają ręcznego potwierdzenia.
 - Identyfikatory Telegrama są mapowane na aktywne konto Taskera.
-- ⏳ Workflow odpowiada wyłącznie w czatach prywatnych. Wiadomości z grup i kanałów są ignorowane przed transkrypcją i interpretacją, aby listy zadań nie trafiały do wspólnych rozmów.
+- Workflow odpowiada wyłącznie w czatach prywatnych. Wiadomości z grup i kanałów są ignorowane przed transkrypcją i interpretacją, aby listy zadań nie trafiały do wspólnych rozmów.
 - Tasker ponownie waliduje wykonawcę, widoczność i role.
 - Tasker ponownie rozpoznaje jawny rodzaj firmowy/prywatny z tekstu źródłowego i przechowuje go niezależnie od widoczności.
 - n8n nie powinien logować nagłówka `Authorization` ani treści prywatnych zadań.

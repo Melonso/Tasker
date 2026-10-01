@@ -126,6 +126,6 @@ export default workflow("tasker-telegram-notifications", "Tasker — przypomnien
   .to(splitDeliveries)
   .to(sendTelegram.onError(reportFailure))
   .to(confirmDelivery)
-  .group("Dostawa przypomnień", [claimDeliveries, splitDeliveries, sendTelegram, confirmDelivery, reportFailure], {
-    description: "Pobiera komunikaty z Taskera, wysyła je przez Telegram i osobno potwierdza każdą dostawę lub błąd.",
+  .group("Dostawa przypomnień", [claimDeliveries, splitDeliveries], {
+    description: "Pobiera komunikaty z Taskera i rozdziela je na pojedyncze dostawy.",
   });

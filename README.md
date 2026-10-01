@@ -63,7 +63,7 @@ Wdrożona wersja produkcyjna działa pod `https://tasker.dpkomis.pl`. Zrealizowa
 
 Do operacyjnego domknięcia pozostaje obserwacja wyników trwającego pilotażu i poprawki wynikające z użycia przez cztery osoby.
 
-Poprawki z code review z 2026-10-01 są gotowe w kodzie i czekają na wspólne wdrożenie produkcyjne. Obejmują atomowe operacje na zadaniach i szkicach, odporne dostawy Telegram i Google Calendar, szybsze listy, limit prób logowania i nagłówki bezpieczeństwa. Status poszczególnych punktów opisuje [roadmapa napraw](docs/FIX_ROADMAP.md).
+Poprawki z code review z 2026-10-01 zostały wdrożone produkcyjnie wraz z migracją i workflow n8n. Obejmują atomowe operacje na zadaniach i szkicach, odporne dostawy Telegram i Google Calendar, szybsze listy, limit prób logowania i nagłówki bezpieczeństwa. Status poszczególnych punktów opisuje [roadmapa napraw](docs/FIX_ROADMAP.md).
 
 ## Uruchomienie bez Dockera
 
