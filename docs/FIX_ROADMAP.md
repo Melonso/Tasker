@@ -16,7 +16,7 @@ Legenda statusu: ⬜ do zrobienia · 🔄 w toku · ✅ zrobione w kodzie (czeka
 |---|---------|---------|--------|
 | 1.1 | Wyścig przy zmianach stanu zadania; podwójne zakończenie zadania cyklicznego tworzy dwa kolejne wystąpienia | Odczyt zadania `FOR UPDATE` w transakcji, warunek statusu/wersji w `UPDATE`, wszystkie mutacje zadania przez serwis | ✅ |
 | 1.2 | Potwierdzanie szkicu nieatomowe: możliwy duplikat zadania i szkice zawieszone w `PROCESSING` | Operacja na zadaniu i zmiana stanu szkicu w jednej transakcji; odzyskiwanie zawieszonych szkiców | ✅ |
-| 1.3 | Błąd jednej wysyłki Telegram przerywa paczkę → duplikaty przypomnień u innych | Workflow n8n: obsługa błędu per element i raport `success:false`; klasyfikacja błędów trwałych po stronie API | ⬜ |
+| 1.3 | Błąd jednej wysyłki Telegram przerywa paczkę → duplikaty przypomnień u innych | Workflow n8n: obsługa błędu per element i raport `success:false`; klasyfikacja błędów trwałych po stronie API | ✅ |
 | 1.4 | Udostępnienie zadania firmowego jednej osobie odbiera dostęp całej firmie | Zachowanie widoczności `COMPANY` przy udostępnieniu | ✅ |
 | 1.5 | Google Calendar: chwilowy błąd trwale wyłącza synchronizację; nie da się odłączyć zepsutego połączenia; batch bez kolejności | Rozróżnienie błędów trwałych/chwilowych, odłączenie bez działającego tokenu, kolejka wg `last_synced_at` | ⬜ |
 | 1.6 | Avatary (do 1,4 MB) w każdym żądaniu i wierszu listy; pulpit pobiera całe archiwum dla liczników | Avatary serwowane z endpointu z cache, listy bez data URL; liczniki przez `count()`, limit archiwum | ⬜ |
@@ -48,9 +48,9 @@ Legenda statusu: ⬜ do zrobienia · 🔄 w toku · ✅ zrobione w kodzie (czeka
 | 3.5 | Zmiana godziny przypomnień nie przelicza zaplanowanych | Przeliczenie zaplanowanych `OVERDUE_DAILY` | ⬜ |
 | 3.6 | Sesje nie są czyszczone, `lastSeenAt` nieaktualizowane | Sprzątanie w workerze, aktualizacja z ograniczeniem częstotliwości | ⬜ |
 | 3.7 | Brak walidacji UUID udostępnień; wyścig przy łączeniu Telegrama → 500 | Walidacja i obsługa konfliktu (walidacja UUID w formularzu zadania: ✅) | 🔄 |
-| 3.8 | Dostawy Telegram odłączonych użytkowników wiszą w `PENDING` | Oznaczanie jako `SKIPPED` | ⬜ |
+| 3.8 | Dostawy Telegram odłączonych użytkowników wiszą w `PENDING` | Oznaczanie jako `SKIPPED` | ✅ |
 | 3.9 | Surowe enumy (`PRIVATE`, `NORMAL`) w UI i podglądzie szkicu | Polskie etykiety | ⬜ |
-| 3.10 | Literówka „Tasket Telegram Bot” w nazwie poświadczenia n8n | Zmiana nazwy przy wdrożeniu | ⬜ |
+| 3.10 | Literówka „Tasket Telegram Bot” w nazwie poświadczenia n8n | Źródło workflow poprawione; zmiana nazwy poświadczenia w n8n przy wdrożeniu | 🔄 |
 | 3.11 | Przekazanie zadania odbiera dostęp poprzedniemu wykonawcy | Decyzja produktowa | ❔ |
 | 3.12 | Flaga `isExternal` zespołu niczego nie wymusza | Decyzja produktowa | ❔ |
 

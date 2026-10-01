@@ -1,4 +1,4 @@
-import { expr, newCredential, node, trigger, workflow } from "@n8n/workflow-sdk";
+import { expr, node, trigger, workflow } from "@n8n/workflow-sdk";
 
 const everyMinute = trigger({
   type: "n8n-nodes-base.scheduleTrigger",
@@ -29,7 +29,7 @@ const claimDeliveries = node({
       jsonBody: expr("{{ { limit: 20 } }}"),
       options: { response: { response: { responseFormat: "json" } } },
     },
-    credentials: { httpBearerAuth: newCredential("Tasker API") },
+    credentials: { httpBearerAuth: { id: "vtvrzLWu4B9S4lTr", name: "Tasker API" } },
     position: [256, 240],
   },
   output: [{ deliveries: [{ deliveryId: "00000000-0000-0000-0000-000000000000", chatId: "123456789", text: "Przypomnienie" }] }],
@@ -62,7 +62,8 @@ const sendTelegram = node({
       text: expr("{{ $json.text }}"),
       additionalFields: { appendAttribution: false, disable_web_page_preview: true },
     },
-    credentials: { telegramApi: newCredential("Tasket Telegram Bot") },
+    credentials: { telegramApi: { id: "5IbWlDjmEVAQkvzT", name: "Tasker Telegram Bot" } },
+    onError: "continueErrorOutput",
     retryOnFail: true,
     maxTries: 3,
     waitBetweenTries: 2_000,
@@ -87,18 +88,44 @@ const confirmDelivery = node({
       jsonBody: expr('{{ { deliveryId: $("Rozdziel dostawy").item.json.deliveryId, success: true } }}'),
       options: { response: { response: { responseFormat: "json" } } },
     },
-    credentials: { httpBearerAuth: newCredential("Tasker API") },
-    position: [1024, 240],
+    credentials: { httpBearerAuth: { id: "vtvrzLWu4B9S4lTr", name: "Tasker API" } },
+    onError: "continueRegularOutput",
+    position: [1024, 160],
   },
   output: [{ status: "SENT" }],
+});
+
+const reportFailure = node({
+  type: "n8n-nodes-base.httpRequest",
+  version: 4.5,
+  config: {
+    name: "Zgłoś błąd dostawy w Taskerze",
+    parameters: {
+      method: "POST",
+      url: "https://tasker.dpkomis.pl/api/integrations/notifications/telegram/result",
+      authentication: "genericCredentialType",
+      genericAuthType: "httpBearerAuth",
+      sendBody: true,
+      contentType: "json",
+      specifyBody: "json",
+      jsonBody: expr(
+        '{{ { deliveryId: $("Rozdziel dostawy").item.json.deliveryId, success: false, error: String($json.error?.description || $json.error?.message || $json.error || "Błąd wysyłki Telegram").slice(0, 2000) } }}',
+      ),
+      options: { response: { response: { responseFormat: "json" } } },
+    },
+    credentials: { httpBearerAuth: { id: "vtvrzLWu4B9S4lTr", name: "Tasker API" } },
+    onError: "continueRegularOutput",
+    position: [1024, 320],
+  },
+  output: [{ status: "FAILED" }],
 });
 
 export default workflow("tasker-telegram-notifications", "Tasker — przypomnienia Telegram")
   .add(everyMinute)
   .to(claimDeliveries)
   .to(splitDeliveries)
-  .to(sendTelegram)
+  .to(sendTelegram.onError(reportFailure))
   .to(confirmDelivery)
-  .group("Dostawa przypomnień", [claimDeliveries, splitDeliveries, sendTelegram, confirmDelivery], {
-    description: "Pobiera gotowe komunikaty z Taskera, wysyła je przez Telegram i potwierdza dostawę.",
+  .group("Dostawa przypomnień", [claimDeliveries, splitDeliveries, sendTelegram, confirmDelivery, reportFailure], {
+    description: "Pobiera komunikaty z Taskera, wysyła je przez Telegram i osobno potwierdza każdą dostawę lub błąd.",
   });

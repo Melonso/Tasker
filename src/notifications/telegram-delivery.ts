@@ -1,10 +1,19 @@
 import { and, eq, inArray, sql } from "drizzle-orm";
 
 import { getDatabaseClient } from "@/db/client";
-import { notificationDeliveries } from "@/db/schema";
+import { notificationDeliveries, notifications, telegramConnections } from "@/db/schema";
 import { getServerEnv } from "@/lib/env";
 
 const MAX_DELIVERY_ATTEMPTS = 5;
+
+/**
+ * Telegram errors that will not go away on retry: the user blocked the bot, deleted the chat or
+ * deactivated the account. Such deliveries fail immediately and the connection needs attention.
+ */
+export function isPermanentTelegramError(error: string | undefined) {
+  if (!error) return false;
+  return /\b403\b|forbidden|bot was blocked|bot was kicked|user is deactivated|chat not found/i.test(error);
+}
 
 export interface ClaimedTelegramDelivery {
   deliveryId: string;
@@ -19,6 +28,21 @@ export async function claimTelegramDeliveries(limit: number) {
   const { db } = getDatabaseClient();
   const safeLimit = Math.min(Math.max(limit, 1), 50);
   const rows = await db.transaction(async (tx) => {
+    await tx.execute(sql`
+      update notification_deliveries as delivery
+      set status = 'SKIPPED',
+          last_error = 'Telegram nie jest połączony z kontem odbiorcy.',
+          updated_at = now()
+      from notifications as notification
+      where notification.id = delivery.notification_id
+        and delivery.channel = 'TELEGRAM'
+        and delivery.status in ('PENDING', 'FAILED')
+        and delivery.attempt_count < ${MAX_DELIVERY_ATTEMPTS}
+        and not exists (
+          select 1 from telegram_connections as connection
+          where connection.user_id = notification.user_id and connection.status = 'CONNECTED'
+        )
+    `);
     await tx.execute(sql`
       update notification_deliveries
       set status = 'FAILED',
@@ -95,20 +119,38 @@ export async function reportTelegramDelivery({
 }) {
   const { db } = getDatabaseClient();
   const now = new Date();
-  const [updated] = await db
-    .update(notificationDeliveries)
-    .set({
-      status: success ? "SENT" : "FAILED",
-      sentAt: success ? now : null,
-      lastError: success ? null : (error || "Błąd wysyłki Telegram").slice(0, 2_000),
-      updatedAt: now,
-    })
-    .where(
-      and(
-        eq(notificationDeliveries.id, deliveryId),
-        eq(notificationDeliveries.channel, "TELEGRAM"),
-      ),
-    )
-    .returning({ id: notificationDeliveries.id });
-  return Boolean(updated);
+  const permanent = !success && isPermanentTelegramError(error);
+  return db.transaction(async (tx) => {
+    const [updated] = await tx
+      .update(notificationDeliveries)
+      .set({
+        status: success ? "SENT" : "FAILED",
+        sentAt: success ? now : null,
+        lastError: success ? null : (error || "Błąd wysyłki Telegram").slice(0, 2_000),
+        ...(permanent ? { attemptCount: MAX_DELIVERY_ATTEMPTS } : {}),
+        updatedAt: now,
+      })
+      .where(
+        and(
+          eq(notificationDeliveries.id, deliveryId),
+          eq(notificationDeliveries.channel, "TELEGRAM"),
+        ),
+      )
+      .returning({ id: notificationDeliveries.id, notificationId: notificationDeliveries.notificationId });
+    if (!updated) return null;
+    if (permanent) {
+      const [notification] = await tx
+        .select({ userId: notifications.userId })
+        .from(notifications)
+        .where(eq(notifications.id, updated.notificationId))
+        .limit(1);
+      if (notification) {
+        await tx
+          .update(telegramConnections)
+          .set({ status: "NEEDS_ATTENTION", updatedAt: now })
+          .where(eq(telegramConnections.userId, notification.userId));
+      }
+    }
+    return { status: success ? ("SENT" as const) : ("FAILED" as const), permanent };
+  });
 }
