@@ -6,9 +6,11 @@ import { z } from "zod";
 
 import { requireRole } from "@/auth/session";
 import { getDatabaseClient } from "@/db/client";
-import { auditEvents, teamMembers, teams, users } from "@/db/schema";
+import { auditEvents, teamMembers, teams } from "@/db/schema";
 import { UserInputError } from "@/lib/errors";
 import { runFormAction } from "@/lib/flash";
+
+import { addTeamMemberForUser } from "./service";
 
 const teamIdSchema = z.uuid();
 
@@ -52,22 +54,7 @@ export async function addTeamMemberAction(formData: FormData) {
     const user = await requireRole("BUSINESS_OWNER");
     const teamId = teamIdSchema.parse(formData.get("teamId"));
     const memberId = z.uuid().parse(formData.get("userId"));
-    await ownedTeam(teamId, user.id);
-    const { db } = getDatabaseClient();
-    const [member] = await db
-      .select({ id: users.id })
-      .from(users)
-      .where(and(eq(users.id, memberId), eq(users.isActive, true)))
-      .limit(1);
-    if (!member) throw new UserInputError("Wybrany użytkownik nie jest aktywny.");
-    await db.transaction(async (tx) => {
-      await tx.insert(teamMembers).values({ teamId, userId: memberId }).onConflictDoNothing();
-      await tx.insert(auditEvents).values({
-        actorId: user.id,
-        action: "TEAM_MEMBER_ADDED",
-        metadata: { teamId, memberId },
-      });
-    });
+    await addTeamMemberForUser(user, teamId, memberId);
     revalidatePath("/teams");
   });
 }

@@ -51,8 +51,8 @@ Legenda statusu: ⬜ do zrobienia · 🔄 w toku · ✅ zrobione w kodzie (czeka
 | 3.8 | Dostawy Telegram odłączonych użytkowników wiszą w `PENDING` | Oznaczanie jako `SKIPPED` | ✅ |
 | 3.9 | Surowe enumy (`PRIVATE`, `NORMAL`) w UI i podglądzie szkicu | Polskie etykiety | ✅ |
 | 3.10 | Literówka „Tasket Telegram Bot” w nazwie poświadczenia n8n | Źródło workflow poprawione; zmiana nazwy poświadczenia w n8n przy wdrożeniu | 🔄 |
-| 3.11 | Przekazanie zadania odbiera dostęp poprzedniemu wykonawcy | Decyzja produktowa | ❔ |
-| 3.12 | Flaga `isExternal` zespołu niczego nie wymusza | Decyzja produktowa | ❔ |
+| 3.11 | Przekazanie zadania odbiera dostęp poprzedniemu wykonawcy | Decyzja: zachowuje dostęp — bezpośrednie udostępnienie (chyba że jest autorem); podgląd w Telegramie o tym informuje | ✅ |
+| 3.12 | Flaga `isExternal` zespołu niczego nie wymusza | Decyzja: zespół firmowy nie przyjmuje osób zewnętrznych (walidacja i filtr listy). Przy wdrożeniu sprawdzić istniejące zespoły | ✅ |
 
 ## Weryfikacja przed wdrożeniem
 
@@ -65,6 +65,6 @@ Legenda statusu: ⬜ do zrobienia · 🔄 w toku · ✅ zrobione w kodzie (czeka
 | # | Zadanie | Status |
 |---|---------|--------|
 | 4.1 | Aktualizacja `README.md`, `docs/IMPLEMENTATION_PLAN.md`, `docs/INTEGRATION_API.md`, `docs/DEPLOYMENT.md` (zmiany oznaczone ⏳; po wdrożeniu usunąć oznaczenia i dopisać datę) | 🔄 |
-| 4.2 | Backup produkcji, wdrożenie aplikacji i migracji | ⬜ |
+| 4.2 | Backup produkcji, wdrożenie aplikacji i migracji; zapytanie kontrolne o osoby zewnętrzne w zespołach firmowych (3.12) | ⬜ |
 | 4.3 | Aktualizacja aktywnych workflow n8n (powiadomienia, Telegram + AI) po walidacji przez n8n MCP; zmiana nazwy poświadczenia (3.10) | ⬜ |
 | 4.4 | Weryfikacja po wdrożeniu (health, Telegram, push, kalendarz) | ⬜ |

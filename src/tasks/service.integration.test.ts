@@ -2,7 +2,7 @@ import { and, eq } from "drizzle-orm";
 import { describe, expect, it } from "vitest";
 
 import { getDatabaseClient } from "@/db/client";
-import { reminders, taskRecurrences, tasks } from "@/db/schema";
+import { reminders, taskRecurrences, tasks, taskShares } from "@/db/schema";
 import { dateTimePartsInZone } from "@/domain/reminders";
 import { createTestUser, setupIntegrationDatabase } from "@/test/integration";
 
@@ -10,6 +10,7 @@ import { canAccessStoredTask } from "./queries";
 import {
   completeTaskForUser,
   createTaskForUser,
+  reassignTaskForUser,
   rescheduleOverdueRemindersForAssignee,
   shareTaskWithUser,
 } from "./service";
@@ -126,5 +127,56 @@ describe("overdue reminder hour", () => {
       .where(and(eq(reminders.taskId, taskId), eq(reminders.status, "SCHEDULED")));
     expect(scheduled).toHaveLength(1);
     expect(dateTimePartsInZone(scheduled[0]!.scheduledAt, user.timeZone).hour).toBe(7);
+  });
+});
+
+describe("task reassignment", () => {
+  const reassign = async (visibility: "PRIVATE" | "COMPANY") => {
+    const author = await createTestUser();
+    const firstAssignee = await createTestUser();
+    const secondAssignee = await createTestUser();
+    const taskId = await createTaskForUser(author, {
+      title: "Przekazywane",
+      assigneeId: firstAssignee.id,
+      visibility,
+      priority: "NORMAL",
+      dueAt: null,
+    });
+    await reassignTaskForUser(author, taskId, secondAssignee.id);
+    const { db } = getDatabaseClient();
+    const [task] = await db.select().from(tasks).where(eq(tasks.id, taskId));
+    return { task: task!, taskId, author, firstAssignee, secondAssignee };
+  };
+
+  it("keeps access for the previous assignee of a private task", async () => {
+    const { task, taskId, firstAssignee, secondAssignee } = await reassign("PRIVATE");
+    expect(task.assigneeId).toBe(secondAssignee.id);
+    expect(task.visibility).toBe("SHARED");
+    expect(await canAccessStoredTask(firstAssignee, taskId)).toBe(true);
+  });
+
+  it("keeps company visibility and adds a share for the previous assignee", async () => {
+    const { task, taskId, firstAssignee } = await reassign("COMPANY");
+    expect(task.visibility).toBe("COMPANY");
+    const { db } = getDatabaseClient();
+    const shares = await db.select().from(taskShares).where(eq(taskShares.taskId, taskId));
+    expect(shares.map((share) => share.userId)).toEqual([firstAssignee.id]);
+  });
+
+  it("does not share with the author when the author handed over their own task", async () => {
+    const author = await createTestUser();
+    const newAssignee = await createTestUser();
+    const taskId = await createTaskForUser(author, {
+      title: "Własne",
+      assigneeId: author.id,
+      visibility: "PRIVATE",
+      priority: "NORMAL",
+      dueAt: null,
+    });
+    await reassignTaskForUser(author, taskId, newAssignee.id);
+    const { db } = getDatabaseClient();
+    const [task] = await db.select().from(tasks).where(eq(tasks.id, taskId));
+    expect(task?.visibility).toBe("PRIVATE");
+    expect(await db.select().from(taskShares).where(eq(taskShares.taskId, taskId))).toHaveLength(0);
   });
 });

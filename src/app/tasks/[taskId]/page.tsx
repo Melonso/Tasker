@@ -130,10 +130,10 @@ export default async function TaskDetailsPage({ params }: { params: Promise<{ ta
         ) : null}
       </section>
 
-      {task.visibility === "SHARED" ? (
+      {task.visibility === "SHARED" || task.shares.length ? (
         <section className="panel sharing-panel">
-          <div className="panel-heading"><div><p className="eyebrow">Dostęp</p><h2>Udostępnienie zadania</h2></div></div>
-          {task.authorId === user.id ? (
+          <div className="panel-heading"><div><p className="eyebrow">Dostęp</p><h2>{task.visibility === "SHARED" ? "Udostępnienie zadania" : "Dodatkowy dostęp"}</h2></div></div>
+          {task.authorId === user.id && task.visibility === "SHARED" ? (
             <form action={updateTaskSharesAction} className="sharing-form">
               <input name="taskId" type="hidden" value={task.id} />
               <div className="share-options">

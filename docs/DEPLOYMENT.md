@@ -205,10 +205,13 @@ Gałąź `claude/relaxed-gauss-23rram` zawiera poprawki opisane w `docs/FIX_ROAD
 
 1. Wykonać i zweryfikować backup: `deploy/backup-tasker.sh`.
 2. Sprawdzić, że chroniony `.env` zawiera jawne `SESSION_SECRET` oraz `INTEGRATION_ENCRYPTION_KEY` (np. `grep -c '^SESSION_SECRET=' .env`, bez wyświetlania wartości). Nowa wersja odmawia startu w produkcji, jeżeli którejś brakuje — dotychczas po cichu używała wartości deweloperskich.
-3. Zbudować obrazy i uruchomić migrację `0008_login_attempts.sql`. Migracja tylko dodaje tabelę `login_attempts` z indeksami, dlatego rollback obrazu nie wymaga jej cofania.
-4. Wymienić procesy `web` i `worker`, sprawdzić `/api/health/ready` i `/api/health/operations`.
-5. Dopiero po aplikacji zaktualizować w n8n workflow „Tasker — przypomnienia Telegram” (wyjście błędu per wiadomość, raport `success:false`) oraz „Tasker — Telegram + AI” (tylko czaty prywatne, polskie etykiety podglądu). Przy okazji zmienić nazwę poświadczenia „Tasket Telegram Bot” na „Tasker Telegram Bot”.
-6. Smoke test: logowanie, utworzenie i zakończenie zadania, avatar w ustawieniach, `/dzisiaj` w Telegramie, szkic z potwierdzeniem, testowy push.
+3. Sprawdzić, czy zespoły firmowe zawierają osoby zewnętrzne (nowa reguła nie usuwa istniejących członkostw):
+   `select t.name, u.email from teams t join team_members m on m.team_id = t.id join users u on u.id = m.user_id join user_roles ur on ur.user_id = u.id join roles r on r.id = ur.role_id where not t.is_external and r.key = 'EXTERNAL';`
+   Wynik należy omówić z właścicielem przed ewentualną zmianą.
+4. Zbudować obrazy i uruchomić migrację `0008_login_attempts.sql`. Migracja tylko dodaje tabelę `login_attempts` z indeksami, dlatego rollback obrazu nie wymaga jej cofania.
+5. Wymienić procesy `web` i `worker`, sprawdzić `/api/health/ready` i `/api/health/operations`.
+6. Dopiero po aplikacji zaktualizować w n8n workflow „Tasker — przypomnienia Telegram” (wyjście błędu per wiadomość, raport `success:false`) oraz „Tasker — Telegram + AI” (tylko czaty prywatne, polskie etykiety podglądu). Przy okazji zmienić nazwę poświadczenia „Tasket Telegram Bot” na „Tasker Telegram Bot”.
+7. Smoke test: logowanie, utworzenie i zakończenie zadania, avatar w ustawieniach, `/dzisiaj` w Telegramie, szkic z potwierdzeniem, testowy push.
 
 Zmiany zachowania istotne operacyjnie:
 

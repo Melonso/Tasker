@@ -464,8 +464,11 @@ export async function reassignTaskForUser(
       throw new TaskInputError("Zadanie firmowe można przekazać wyłącznie użytkownikowi firmowemu.");
     }
 
+    // The previous assignee keeps access through a direct share, unless they are the author.
+    const keepsPreviousAssignee = task.assigneeId !== task.authorId;
     const remainingShares = shares.filter((share) => share.userId !== targetAssignee.id);
-    const nextVisibility = task.visibility === "SHARED" && remainingShares.length === 0 ? "PRIVATE" : task.visibility;
+    const hasSharesAfter = remainingShares.length > 0 || keepsPreviousAssignee;
+    const nextVisibility = task.visibility === "COMPANY" ? "COMPANY" : hasSharesAfter ? "SHARED" : "PRIVATE";
     const now = new Date();
     await updateLockedTask(
       tx,
@@ -476,6 +479,12 @@ export async function reassignTaskForUser(
     await tx
       .delete(taskShares)
       .where(and(eq(taskShares.taskId, task.id), eq(taskShares.userId, targetAssignee.id)));
+    if (keepsPreviousAssignee) {
+      await tx
+        .insert(taskShares)
+        .values({ taskId: task.id, userId: task.assigneeId })
+        .onConflictDoNothing({ target: [taskShares.taskId, taskShares.userId] });
+    }
     await replaceReminders(tx, task.id, task.dueAt, targetAssignee, now);
     if (recurrence && task.dueAt) {
       await tx
@@ -495,6 +504,7 @@ export async function reassignTaskForUser(
         newAssigneeId: targetAssignee.id,
         previousVisibility: task.visibility,
         newVisibility: nextVisibility,
+        previousAssigneeKeepsAccess: keepsPreviousAssignee,
       },
     });
     return task.id;

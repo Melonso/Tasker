@@ -41,6 +41,9 @@ Data bazowa ustaleń: 2026-08-28. Strefa czasowa pierwszego wdrożenia: `Europe/
 35. Wiadomości głosowe Telegrama są pobierane przez n8n, transkrybowane jako polska mowa przez OpenAI i dalej obsługiwane tą samą ścieżką szkicu co polecenia tekstowe. Tasker nie przechowuje oryginalnego nagrania ani transkrypcji.
 36. Polecenie „dodaj osobę do zadania” oznacza bezpośrednie udostępnienie bez zmiany wykonawcy, natomiast „przekaż/przypisz zadanie osobie” zmienia jedynego głównego wykonawcę. Obie operacje może zatwierdzić wyłącznie autor zadania i żadna nie podlega automatycznemu zatwierdzeniu.
 37. Polecenie tworzące nowe zadanie może równocześnie wskazać jedną osobę w `shareWith`. Wykonawca i odbiorca udostępnienia są odrębnymi rolami, a utworzenie zadania oraz bezpośredniego udostępnienia odbywa się atomowo. Widoczność `SHARED` bez odbiorcy wymaga doprecyzowania i nie może zostać automatycznie zatwierdzona.
+38. Po przekazaniu zadania dotychczasowy wykonawca zachowuje dostęp przez bezpośrednie udostępnienie, chyba że był jednocześnie autorem. Zadanie prywatne otrzymuje wtedy widoczność `SHARED`, a zadanie firmowe pozostaje `COMPANY` (decyzja z 2026-10-01; ⏳ czeka na wdrożenie).
+39. Do zespołu firmowego nie można dodać użytkownika zewnętrznego. Osoby zewnętrzne trafiają wyłącznie do zespołów utworzonych z opcją „Zespół może zawierać osoby zewnętrzne” (decyzja z 2026-10-01; ⏳ czeka na wdrożenie).
+40. Udostępnienie zadania firmowego konkretnej osobie nie zawęża jego widoczności — pozostali pracownicy zachowują dostęp, a wskazana osoba otrzymuje dodatkowy (⏳ czeka na wdrożenie).
 
 ## Użytkownicy pilotażowi i role
 
