@@ -1,6 +1,13 @@
 node_modules
 .next
 .git
+.secrets
+backups
+logs
+.tmp
+.codex-remote-attachments
+*.dump
+*.tar.gz
 .env*
 !.env.example
 coverage
