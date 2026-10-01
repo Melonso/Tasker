@@ -13,6 +13,8 @@
 - **Etap 9 – pierwsza iteracja UX wdrożona.** Audyt znajduje się w `docs/UX_RESEARCH_2026-08-29.md`. Zrealizowano zadaniowy ekran „Dzisiaj”, osobiste przypinanie do planu, stale widoczne statystyki pod listą, skanowalną listę, uproszczone dodawanie, szybkie przesuwanie terminu, mobilną nawigację z centralnym `+`, liczniki zawartości przy wszystkich pozycjach zadań i notatek, stabilny mobilny układ wierszy z awatarem autora, wycentrowane badge'e liczników sekcji oraz poprawne dopasowanie viewportu i pól formularzy na iPhone'ach bez automatycznego zoomu Safari. Poprawiono nakładanie popovera opcji zadania (`•••`), usuwając przycinanie kontenera ekranu „Dzisiaj” (`overflow: visible`) i podnosząc warstwę otwartego menu ponad podsumowanie. Dodano bezpośrednie pole edycji rodzaju wpisu (Firmowy / Prywatny) w wierszach listy zadań dla autora, umożliwiające natychmiastową zmianę bez otwierania menu `•••`.
 - **Etap 10 – Notatki wdrożone.** Działa odrębny od zadań prywatny moduł notatek z tytułem, treścią, sześcioma kolorami, edycją i usuwaniem. Web pokazuje kompaktową tabelę; przycisk u góry rozwija formularz, a kliknięcie wiersza przełącza go w edycję bez osobnego okna. Telegram zapisuje notatkę natychmiast przez `/notatka TREŚĆ` oraz naturalne zwroty „dodaj do notatek…” i „zapisz w notatkach…”. Użytkownik może skonfigurować kilka dziennych lub tygodniowych przypomnień porządkowych z własną godziną.
 
+- **Etap 11 – poprawki z code review (2026-10-01) gotowe w kodzie, czekają na wdrożenie.** Szczegóły i status punktów są w `docs/FIX_ROADMAP.md`. Zakres: atomowe mutacje zadań i szkiców, odporna dostawa Telegram i Google Calendar, avatary serwowane z cache, liczniki pulpitu w SQL, limit prób logowania, wymuszone sekrety produkcyjne, izolowane kroki workera, komunikaty błędów zamiast ekranu awarii, nagłówki bezpieczeństwa oraz testy integracyjne na PostgreSQL (`pnpm test:integration`). Zgodnie z decyzjami właściciela poprzedni wykonawca zachowuje dostęp po przekazaniu zadania, a zespół firmowy nie przyjmuje osób zewnętrznych.
+
 ## 1. Rekomendowana architektura
 
 MVP powinno działać na jednym serwerze, ale rozdzielać ruch użytkowników od zadań pracujących w tle.
@@ -236,6 +238,10 @@ Google, Web Push i Telegram mogą być rozwijane równolegle dopiero po ustabili
 13. Ponowienie tej samej aktualizacji Telegrama nie tworzy drugiej notatki.
 14. Dzienny i tygodniowy harmonogram notatek prawidłowo przechodzą przez zmianę daty oraz zachowują wybraną lokalną godzinę.
 15. Utworzenie lub przekazanie zadania innej osobie oraz nowe bezpośrednie udostępnienie tworzą jeden komunikat w aplikacji i tylko dostępne, włączone dostawy Web Push/Telegram; autor nie dostaje alertu o przypisaniu zadania samemu sobie.
+
+16. Równoczesne zakończenie zadania cyklicznego tworzy dokładnie jedno kolejne wystąpienie (test integracyjny).
+17. Wyścig ręcznego i automatycznego zatwierdzenia szkicu tworzy dokładnie jedno zadanie, a odrzucona operacja niczego nie zapisuje (test integracyjny).
+18. Udostępnienie zadania firmowego osobie zewnętrznej nie odbiera dostępu pozostałym pracownikom (test integracyjny).
 
 ## 6. Ryzyka i zabezpieczenia
 

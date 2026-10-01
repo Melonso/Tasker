@@ -19,6 +19,7 @@ import {
 } from "@/tasks/actions";
 import { getTaskDetails, listAssignableUsers, listTeamsForSharing } from "@/tasks/queries";
 import { recurrenceLabel } from "@/domain/recurrence";
+import { priorityLabels, visibilityLabels } from "@/tasks/labels";
 
 function dateTime(value: Date | null, timeZone: string) {
   if (!value) return "Brak terminu";
@@ -34,19 +35,6 @@ const statusLabels = {
   WAITING: "Oczekujące",
   COMPLETED: "Zrobione",
   CANCELED: "Anulowane",
-};
-
-const visibilityLabels = {
-  PRIVATE: "Prywatny — autor i wykonawca",
-  COMPANY: "Firmowy — użytkownicy firmowi",
-  SHARED: "Udostępniony wybranym osobom lub zespołom",
-};
-
-const priorityLabels = {
-  LOW: "Niski",
-  NORMAL: "Normalny",
-  HIGH: "Wysoki",
-  URGENT: "Pilny",
 };
 
 export default async function TaskDetailsPage({ params }: { params: Promise<{ taskId: string }> }) {
@@ -78,8 +66,8 @@ export default async function TaskDetailsPage({ params }: { params: Promise<{ ta
 
       <section className="panel task-detail-panel">
         <dl className="task-metadata">
-          <div><dt>Wykonawca</dt><dd className="person-value"><UserAvatar avatarDataUrl={task.assigneeAvatarDataUrl} firstName={task.assigneeFirstName} lastName={task.assigneeLastName} size={30} />{task.assigneeFirstName} {task.assigneeLastName}</dd></div>
-          <div><dt>Autor</dt><dd className="person-value"><UserAvatar avatarDataUrl={task.authorAvatarDataUrl} firstName={task.authorFirstName} lastName={task.authorLastName} size={30} />{task.authorFirstName} {task.authorLastName}</dd></div>
+          <div><dt>Wykonawca</dt><dd className="person-value"><UserAvatar avatarUrl={task.assigneeAvatarUrl} firstName={task.assigneeFirstName} lastName={task.assigneeLastName} size={30} />{task.assigneeFirstName} {task.assigneeLastName}</dd></div>
+          <div><dt>Autor</dt><dd className="person-value"><UserAvatar avatarUrl={task.authorAvatarUrl} firstName={task.authorFirstName} lastName={task.authorLastName} size={30} />{task.authorFirstName} {task.authorLastName}</dd></div>
           <div><dt>Termin</dt><dd>{dateTime(task.dueAt, user.timeZone)}</dd></div>
           <div><dt>Dostęp</dt><dd>{visibilityLabels[task.visibility]}</dd></div>
           <div>
@@ -182,17 +170,17 @@ export default async function TaskDetailsPage({ params }: { params: Promise<{ ta
         ) : null}
       </section>
 
-      {task.visibility === "SHARED" ? (
+      {task.visibility === "SHARED" || task.shares.length ? (
         <section className="panel sharing-panel">
-          <div className="panel-heading"><div><p className="eyebrow">Dostęp</p><h2>Udostępnienie zadania</h2></div></div>
-          {task.authorId === user.id ? (
+          <div className="panel-heading"><div><p className="eyebrow">Dostęp</p><h2>{task.visibility === "SHARED" ? "Udostępnienie zadania" : "Dodatkowy dostęp"}</h2></div></div>
+          {task.authorId === user.id && task.visibility === "SHARED" ? (
             <form action={updateTaskSharesAction} className="sharing-form">
               <input name="taskId" type="hidden" value={task.id} />
               <div className="share-options">
                 {shareUsers.filter((person) => person.id !== task.authorId && person.id !== task.assigneeId).map((person) => (
                   <label key={person.id}>
                     <input defaultChecked={sharedUserIds.has(person.id)} name="shareUserIds" type="checkbox" value={person.id} />
-                    <UserAvatar avatarDataUrl={person.avatarDataUrl} firstName={person.firstName} lastName={person.lastName} size={30} />
+                    <UserAvatar avatarUrl={person.avatarUrl} firstName={person.firstName} lastName={person.lastName} size={30} />
                     <span>{person.firstName} {person.lastName}</span>
                   </label>
                 ))}
@@ -218,7 +206,7 @@ export default async function TaskDetailsPage({ params }: { params: Promise<{ ta
         <div className="comment-list">
           {task.comments.map((comment) => (
             <article className="comment" key={comment.id}>
-              <UserAvatar avatarDataUrl={comment.authorAvatarDataUrl} firstName={comment.authorFirstName} lastName={comment.authorLastName} />
+              <UserAvatar avatarUrl={comment.authorAvatarUrl} firstName={comment.authorFirstName} lastName={comment.authorLastName} />
               <div><strong>{comment.authorFirstName} {comment.authorLastName}</strong><time>{dateTime(comment.createdAt, user.timeZone)}</time><p>{comment.body}</p></div>
             </article>
           ))}

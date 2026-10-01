@@ -1,12 +1,12 @@
 import Image from "next/image";
 
 export function UserAvatar({
-  avatarDataUrl,
+  avatarUrl,
   firstName,
   lastName,
   size = 38,
 }: {
-  avatarDataUrl: string | null;
+  avatarUrl: string | null;
   firstName: string;
   lastName: string;
   size?: number;
@@ -18,8 +18,8 @@ export function UserAvatar({
       className="avatar user-avatar"
       style={{ height: size, width: size }}
     >
-      {avatarDataUrl ? (
-        <Image alt="" height={size} src={avatarDataUrl} unoptimized width={size} />
+      {avatarUrl ? (
+        <Image alt="" height={size} src={avatarUrl} unoptimized width={size} />
       ) : initials}
     </span>
   );

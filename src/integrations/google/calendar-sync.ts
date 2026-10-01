@@ -1,4 +1,4 @@
-import { and, eq, inArray, isNotNull, or } from "drizzle-orm";
+import { and, asc, eq, inArray, isNotNull, or, sql } from "drizzle-orm";
 import { calendar_v3, google } from "googleapis";
 
 import { getDatabaseClient } from "@/db/client";
@@ -157,6 +157,7 @@ export async function processGoogleCalendarBatch(limit = 10) {
     .select()
     .from(googleConnections)
     .where(eq(googleConnections.status, "CONNECTED"))
+    .orderBy(sql`${googleConnections.lastSyncedAt} asc nulls first`, asc(googleConnections.userId))
     .limit(Math.min(Math.max(limit, 1), 50));
   let synced = 0;
   let failed = 0;
@@ -181,25 +182,39 @@ export async function processGoogleCalendarBatch(limit = 10) {
   return { claimed: connections.length, synced, failed, created, updated, deleted };
 }
 
+/**
+ * Disconnects the calendar. Removing Tasker's events and revoking the token are best effort: a
+ * revoked or broken connection must still be removable from Tasker.
+ */
 export async function removeGoogleCalendarConnection(connection: GoogleConnection) {
   const { db } = getDatabaseClient();
-  const oauth = await authorizedGoogleClient(connection);
-  const calendar = google.calendar({ version: "v3", auth: oauth });
   const links = await db
     .select()
     .from(calendarEventLinks)
     .where(eq(calendarEventLinks.userId, connection.userId));
-  for (const link of links) {
-    try {
-      await calendar.events.delete({ calendarId: link.calendarId, eventId: link.eventId, sendUpdates: "none" });
-    } catch (error) {
-      if (googleStatus(error) !== 404 && googleStatus(error) !== 410) throw error;
+  let remainingEvents = 0;
+  try {
+    const oauth = await authorizedGoogleClient(connection);
+    const calendar = google.calendar({ version: "v3", auth: oauth });
+    for (const link of links) {
+      try {
+        await calendar.events.delete({ calendarId: link.calendarId, eventId: link.eventId, sendUpdates: "none" });
+      } catch (error) {
+        if (googleStatus(error) !== 404 && googleStatus(error) !== 410) remainingEvents += 1;
+      }
     }
+    const accessToken = oauth.credentials.access_token;
+    if (accessToken) await oauth.revokeToken(accessToken).catch(() => undefined);
+  } catch (error) {
+    remainingEvents = links.length;
+    console.warn("Google Calendar disconnect without remote cleanup", {
+      userId: connection.userId,
+      error: error instanceof Error ? error.message : "Nieznany błąd",
+    });
   }
-  const accessToken = oauth.credentials.access_token;
-  if (accessToken) await oauth.revokeToken(accessToken).catch(() => undefined);
   await db.transaction(async (tx) => {
     await tx.delete(calendarEventLinks).where(eq(calendarEventLinks.userId, connection.userId));
     await tx.delete(googleConnections).where(eq(googleConnections.userId, connection.userId));
   });
+  return { remainingEvents };
 }

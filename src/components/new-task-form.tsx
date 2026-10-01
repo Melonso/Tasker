@@ -10,7 +10,7 @@ interface AssigneeOption {
   firstName: string;
   lastName: string;
   email: string;
-  avatarDataUrl: string | null;
+  avatarUrl: string | null;
 }
 
 interface ShareTeamOption {

@@ -71,6 +71,13 @@
       "when": 1788357555066,
       "tag": "0009_fixed_amphibian",
       "breakpoints": true
+    },
+    {
+      "idx": 10,
+      "version": "7",
+      "when": 1790841693004,
+      "tag": "0010_login_attempts",
+      "breakpoints": true
     }
   ]
 }

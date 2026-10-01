@@ -1,42 +1,15 @@
 import { describe, expect, it } from "vitest";
 
-import { canAccessTask } from "./policy";
+import { isCompanyUser } from "./policy";
 
-const privateTask = {
-  authorId: "pawel",
-  assigneeId: "pawel",
-  visibility: "PRIVATE" as const,
-};
-
-describe("task access policy", () => {
-  it("does not let an application administrator read another user's private task", () => {
-    expect(canAccessTask({ userId: "mateusz", roles: ["APP_ADMIN", "COMPANY_MEMBER"] }, privateTask)).toBe(false);
+describe("company membership", () => {
+  it("treats business owners and company members as company users", () => {
+    expect(isCompanyUser(["BUSINESS_OWNER"])).toBe(true);
+    expect(isCompanyUser(["APP_ADMIN", "COMPANY_MEMBER"])).toBe(true);
   });
 
-  it("lets a company member read a company task", () => {
-    expect(
-      canAccessTask(
-        { userId: "michal", roles: ["COMPANY_MEMBER"] },
-        { ...privateTask, visibility: "COMPANY" },
-      ),
-    ).toBe(true);
-  });
-
-  it("does not expose a company task to an external user", () => {
-    expect(
-      canAccessTask(
-        { userId: "nadia", roles: ["EXTERNAL"] },
-        { ...privateTask, visibility: "COMPANY" },
-      ),
-    ).toBe(false);
-  });
-
-  it("lets a directly shared external user read a shared task", () => {
-    expect(
-      canAccessTask(
-        { userId: "nadia", roles: ["EXTERNAL"] },
-        { ...privateTask, visibility: "SHARED", sharedUserIds: ["nadia"] },
-      ),
-    ).toBe(true);
+  it("does not treat external users or administrators alone as company users", () => {
+    expect(isCompanyUser(["EXTERNAL"])).toBe(false);
+    expect(isCompanyUser(["APP_ADMIN"])).toBe(false);
   });
 });

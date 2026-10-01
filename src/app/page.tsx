@@ -12,7 +12,7 @@ import {
   updateTaskScopeAction,
 } from "@/tasks/actions";
 import { groupTodayTasks, localDateKey, taskListRelationship } from "@/tasks/presentation";
-import { listTasksForView, type TaskView } from "@/tasks/queries";
+import { countTasksByView, DONE_VIEW_LIMIT, listTasksForView, type TaskView } from "@/tasks/queries";
 
 const viewCopy: Record<TaskView, { eyebrow: string; title: string; description: string }> = {
   today: { eyebrow: "Plan dnia", title: "Najważniejsze na dziś", description: "Najpierw zadania, potem statystyki." },
@@ -20,7 +20,7 @@ const viewCopy: Record<TaskView, { eyebrow: string; title: string; description: 
   waiting: { eyebrow: "Oczekujące", title: "Czekające na odpowiedź", description: "Zadania wstrzymane do czasu informacji lub zdarzenia." },
   delegated: { eyebrow: "Delegowane", title: "Przekazane innym", description: "Zadania, za które oczekujesz informacji zwrotnej." },
   recurring: { eyebrow: "Cykliczne", title: "Powtarzające się zadania", description: "Zadania odtwarzane zgodnie z harmonogramem." },
-  done: { eyebrow: "Archiwum", title: "Zrobione", description: "Historia zakończonych zadań." },
+  done: { eyebrow: "Archiwum", title: "Zrobione", description: `Ostatnie ${DONE_VIEW_LIMIT} zakończonych zadań.` },
 };
 
 function parseView(value: string | undefined): TaskView {
@@ -79,9 +79,9 @@ function TaskRow({
   const delegated = relationship === "DELEGATED";
   const received = relationship === "ASSIGNED" || relationship === "SHARED";
   const shared = relationship === "SHARED" && task.visibility === "SHARED";
-  const editable = relationship !== "SHARED";
   const authoredByUser = task.authorId === user.id;
   const ownTask = task.assigneeId === user.id;
+  const editable = ownTask || task.authorId === user.id;
   const plannedToday = task.plannedForDate === today;
   const statusLabel = overdue
     ? "Po terminie"
@@ -102,12 +102,12 @@ function TaskRow({
   }[task.priority];
   const displayedPerson = received
     ? {
-        avatarDataUrl: task.authorAvatarDataUrl,
+        avatarUrl: task.authorAvatarUrl,
         firstName: task.authorFirstName,
         lastName: task.authorLastName,
       }
     : {
-        avatarDataUrl: task.assigneeAvatarDataUrl,
+        avatarUrl: task.assigneeAvatarUrl,
         firstName: task.assigneeFirstName,
         lastName: task.assigneeLastName,
       };
@@ -310,14 +310,7 @@ export default async function DashboardPage({
 }) {
   const user = await requireUser();
   const view = parseView((await searchParams).view);
-  const [visibleTasks, currentTasks, waitingTasks, delegatedTasks, completedTasks] = await Promise.all([
-    listTasksForView(user, view),
-    listTasksForView(user, "current"),
-    listTasksForView(user, "waiting"),
-    listTasksForView(user, "delegated"),
-    listTasksForView(user, "done"),
-  ]);
-  const overdueCount = currentTasks.filter((task) => task.isOverdue).length;
+  const [visibleTasks, counts] = await Promise.all([listTasksForView(user, view), countTasksByView(user)]);
   const copy = viewCopy[view];
   const today = localDateKey(new Date(), user.timeZone);
   const companyTasks = visibleTasks.filter((task) => task.scope === "COMPANY");
@@ -337,7 +330,7 @@ export default async function DashboardPage({
       <section className={`panel task-panel ${view === "today" ? "today-board" : ""}`}>
         <div className="panel-heading">
           <div><p className="eyebrow">{copy.eyebrow}</p><h2>{copy.title}</h2></div>
-          {view === "done" ? <span className="muted-chip">{completedTasks.length} zakończonych</span> : null}
+          {view === "done" ? <span className="muted-chip">{counts.done} zakończonych</span> : null}
           {view === "today" ? <span className="muted-chip">{visibleTasks.length} do zrobienia</span> : null}
         </div>
 
@@ -352,10 +345,10 @@ export default async function DashboardPage({
           <h2 id="dashboard-summary-title">Podsumowanie wszystkich zadań</h2>
         </div>
         <div className="summary-strip" aria-label="Podsumowanie zadań">
-          <Link href="/?view=current"><span>Bieżące</span><strong>{currentTasks.length}</strong></Link>
-          <Link href="/?view=waiting"><span>Oczekujące</span><strong>{waitingTasks.length}</strong></Link>
-          <Link href="/?view=delegated"><span>Delegowane</span><strong>{delegatedTasks.length}</strong></Link>
-          <Link className={overdueCount ? "has-alert" : ""} href="/"><span>Po terminie</span><strong>{overdueCount}</strong></Link>
+          <Link href="/?view=current"><span>Bieżące</span><strong>{counts.current}</strong></Link>
+          <Link href="/?view=waiting"><span>Oczekujące</span><strong>{counts.waiting}</strong></Link>
+          <Link href="/?view=delegated"><span>Delegowane</span><strong>{counts.delegated}</strong></Link>
+          <Link className={counts.overdue ? "has-alert" : ""} href="/"><span>Po terminie</span><strong>{counts.overdue}</strong></Link>
         </div>
       </section>
     </div>

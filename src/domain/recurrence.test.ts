@@ -1,6 +1,6 @@
 import { describe, expect, it } from "vitest";
 
-import { nextRecurringDueAt } from "./recurrence";
+import { firstRecurringDueAtAfter, nextRecurringDueAt } from "./recurrence";
 import { zonedDateTimeToUtc } from "./reminders";
 
 const zone = "Europe/Warsaw";
@@ -22,5 +22,20 @@ describe("nextRecurringDueAt", () => {
     const current = zonedDateTimeToUtc({ year: 2027, month: 1, day: 31, hour: 14 }, zone);
     const next = nextRecurringDueAt(current, { frequency: "MONTHLY", interval: 1 }, zone);
     expect(next.toISOString()).toBe("2027-02-28T13:00:00.000Z");
+  });
+});
+
+describe("firstRecurringDueAtAfter", () => {
+  it("keeps a candidate that is still in the future", () => {
+    const candidate = zonedDateTimeToUtc({ year: 2026, month: 9, day: 10, hour: 14 }, zone);
+    const now = zonedDateTimeToUtc({ year: 2026, month: 9, day: 5, hour: 9 }, zone);
+    expect(firstRecurringDueAtAfter(candidate, { frequency: "WEEKLY", interval: 1 }, zone, now)).toEqual(candidate);
+  });
+
+  it("skips occurrences that passed while the task was overdue", () => {
+    const candidate = zonedDateTimeToUtc({ year: 2026, month: 9, day: 1, hour: 14 }, zone);
+    const now = zonedDateTimeToUtc({ year: 2026, month: 9, day: 20, hour: 9 }, zone);
+    const next = firstRecurringDueAtAfter(candidate, { frequency: "WEEKLY", interval: 1 }, zone, now);
+    expect(next.toISOString()).toBe(zonedDateTimeToUtc({ year: 2026, month: 9, day: 22, hour: 14 }, zone).toISOString());
   });
 });

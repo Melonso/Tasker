@@ -34,6 +34,7 @@ Obecna lista szybkich komend:
 - `/zalegle` — zadania po terminie,
 - `/zadania` — wszystkie aktywne zadania w głównych kategoriach,
 - `/dodaj` — instrukcja dodawania zadania,
+- `/notatka TREŚĆ` — natychmiastowy zapis prywatnej notatki,
 - `/pomoc` — skrócona instrukcja i możliwości bota.
 
 ## Kryterium zakończenia

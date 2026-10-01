@@ -1,9 +1,10 @@
-import { asc, eq } from "drizzle-orm";
+import { asc, eq, sql } from "drizzle-orm";
 
 import { requireRole } from "@/auth/session";
 import { UserAvatar } from "@/components/user-avatar";
 import { getDatabaseClient } from "@/db/client";
 import { teamMembers, teams, users } from "@/db/schema";
+import { avatarUrlColumn } from "@/users/avatar-url";
 import { addTeamMemberAction, createTeamAction, removeTeamMemberAction } from "@/teams/actions";
 
 export const metadata = { title: "Zespoły" };
@@ -20,7 +21,7 @@ export default async function TeamsPage() {
         memberId: users.id,
         memberFirstName: users.firstName,
         memberLastName: users.lastName,
-        memberAvatarDataUrl: users.avatarDataUrl,
+        memberAvatarUrl: avatarUrlColumn(users),
       })
       .from(teams)
       .leftJoin(teamMembers, eq(teams.id, teamMembers.teamId))
@@ -28,7 +29,16 @@ export default async function TeamsPage() {
       .where(eq(teams.createdById, user.id))
       .orderBy(asc(teams.name), asc(users.firstName)),
     db
-      .select({ id: users.id, firstName: users.firstName, lastName: users.lastName })
+      .select({
+        id: users.id,
+        firstName: users.firstName,
+        lastName: users.lastName,
+        isExternal: sql<boolean>`exists (
+          select 1 from user_roles
+          inner join roles on roles.id = user_roles.role_id
+          where user_roles.user_id = ${users.id} and roles.key = 'EXTERNAL'
+        )`,
+      })
       .from(users)
       .where(eq(users.isActive, true))
       .orderBy(asc(users.firstName), asc(users.lastName)),
@@ -53,13 +63,16 @@ export default async function TeamsPage() {
       </section>
       {[...grouped.values()].map((team) => {
         const memberIds = new Set(team.members.flatMap((member) => member.memberId ? [member.memberId] : []));
+        const candidates = activeUsers.filter(
+          (person) => !memberIds.has(person.id) && (team.isExternal || !person.isExternal),
+        );
         return (
           <section className="panel team-panel" key={team.id}>
             <div className="panel-heading"><div><p className="eyebrow">{team.isExternal ? "Zespół zewnętrzny" : "Zespół firmowy"}</p><h2>{team.name}</h2></div><span className="muted-chip">{team.members.length} osób</span></div>
             <div className="team-member-list">
               {team.members.map((member) => (
                 <article key={member.memberId}>
-                  <UserAvatar avatarDataUrl={member.memberAvatarDataUrl} firstName={member.memberFirstName ?? ""} lastName={member.memberLastName ?? ""} />
+                  <UserAvatar avatarUrl={member.memberAvatarUrl} firstName={member.memberFirstName ?? ""} lastName={member.memberLastName ?? ""} />
                   <strong>{member.memberFirstName} {member.memberLastName}</strong>
                   {member.memberId !== user.id ? (
                     <form action={removeTeamMemberAction}><input name="teamId" type="hidden" value={team.id} /><input name="userId" type="hidden" value={member.memberId ?? ""} /><button className="text-button" type="submit">Usuń</button></form>
@@ -69,8 +82,8 @@ export default async function TeamsPage() {
             </div>
             <form action={addTeamMemberAction} className="team-add-form">
               <input name="teamId" type="hidden" value={team.id} />
-              <label>Dodaj osobę<select name="userId" required>{activeUsers.filter((person) => !memberIds.has(person.id)).map((person) => <option key={person.id} value={person.id}>{person.firstName} {person.lastName}</option>)}</select></label>
-              <button className="secondary-button" disabled={activeUsers.every((person) => memberIds.has(person.id))} type="submit">Dodaj do zespołu</button>
+              <label>Dodaj osobę<select name="userId" required>{candidates.map((person) => <option key={person.id} value={person.id}>{person.firstName} {person.lastName}</option>)}</select></label>
+              <button className="secondary-button" disabled={!candidates.length} type="submit">Dodaj do zespołu</button>
             </form>
           </section>
         );

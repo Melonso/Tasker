@@ -28,6 +28,22 @@ export function createGoogleOAuthClient() {
 
 export type GoogleConnection = typeof googleConnections.$inferSelect;
 
+/**
+ * True when Google rejected the stored grant itself (revoked access, expired or invalid refresh
+ * token). Network failures, timeouts and 5xx responses are transient and must not disconnect the
+ * calendar.
+ */
+export function isPermanentGoogleAuthError(error: unknown) {
+  if (typeof error !== "object" || error === null) return false;
+  const response = (error as { response?: { status?: unknown; data?: unknown } }).response;
+  const data = response?.data;
+  const code = typeof data === "object" && data !== null ? (data as { error?: unknown }).error : undefined;
+  if (code === "invalid_grant" || code === "unauthorized_client" || code === "invalid_client") return true;
+  if (response?.status === 400 || response?.status === 401) return true;
+  const message = error instanceof Error ? error.message : "";
+  return /invalid_grant|unauthorized_client|invalid_client/i.test(message);
+}
+
 export async function authorizedGoogleClient(connection: GoogleConnection) {
   const oauth = createGoogleOAuthClient();
   oauth.setCredentials({
@@ -64,11 +80,13 @@ export async function authorizedGoogleClient(connection: GoogleConnection) {
     }
     return oauth;
   } catch (error) {
-    const { db } = getDatabaseClient();
-    await db
-      .update(googleConnections)
-      .set({ status: "NEEDS_ATTENTION", updatedAt: new Date() })
-      .where(eq(googleConnections.userId, connection.userId));
+    if (isPermanentGoogleAuthError(error)) {
+      const { db } = getDatabaseClient();
+      await db
+        .update(googleConnections)
+        .set({ status: "NEEDS_ATTENTION", updatedAt: new Date() })
+        .where(eq(googleConnections.userId, connection.userId));
+    }
     throw error;
   }
 }

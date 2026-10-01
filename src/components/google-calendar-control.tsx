@@ -25,6 +25,12 @@ export function GoogleCalendarControl({
     try {
       const response = await fetch("/api/integrations/google/disconnect", { method: "POST" });
       if (!response.ok) throw new Error("Nie udało się odłączyć kalendarza.");
+      const { remainingEvents } = (await response.json()) as { remainingEvents?: number };
+      if (remainingEvents) {
+        window.alert(
+          `Kalendarz odłączono, ale ${remainingEvents} zdarzeń Taskera nie udało się usunąć z Google Calendar. Możesz usunąć je ręcznie.`,
+        );
+      }
       window.location.reload();
     } catch (caught) {
       setError(caught instanceof Error ? caught.message : "Nie udało się odłączyć kalendarza.");
@@ -53,6 +59,12 @@ export function GoogleCalendarControl({
       <a className="secondary-button" href="/api/integrations/google/connect">
         {needsAttention ? "Połącz ponownie" : "Połącz konto Google"}
       </a>
+      {needsAttention ? (
+        <button className="text-button" disabled={pending} onClick={disconnect} type="button">
+          {pending ? "Odłączam…" : "Odłącz konto"}
+        </button>
+      ) : null}
+      {error ? <p className="form-error">{error}</p> : null}
     </div>
   );
 }

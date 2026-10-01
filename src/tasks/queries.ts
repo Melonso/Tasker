@@ -1,4 +1,4 @@
-import { and, asc, countDistinct, desc, eq, isNotNull, lte, ne, or, sql } from "drizzle-orm";
+import { and, asc, count, desc, eq, isNotNull, lte, ne, or, sql } from "drizzle-orm";
 import { alias } from "drizzle-orm/pg-core";
 
 import type { AuthenticatedUser } from "@/auth/session";
@@ -13,6 +13,7 @@ import {
   teams,
   users,
 } from "@/db/schema";
+import { avatarUrlColumn } from "@/users/avatar-url";
 import { zonedDateTimeToUtc } from "@/domain/reminders";
 import { localDateKey, taskPriorityRank } from "./presentation";
 
@@ -20,32 +21,49 @@ import { isCompanyUser } from "./policy";
 
 export type TaskView = "today" | "current" | "waiting" | "delegated" | "recurring" | "done";
 
-export function accessCondition(user: AuthenticatedUser) {
-  const directConditions = [
+/** Number of most recently completed tasks shown in the archive view. */
+export const DONE_VIEW_LIMIT = 100;
+
+/**
+ * The single access rule for tasks: the author, the assignee, company members for company tasks,
+ * and everyone the task is shared with directly or through a team. A share grants access whatever
+ * the visibility, so a company task can also be shared with an external person.
+ */
+export function accessCondition(user: Pick<AuthenticatedUser, "id" | "roles">) {
+  const conditions = [
     eq(tasks.authorId, user.id),
     eq(tasks.assigneeId, user.id),
-    eq(taskShares.userId, user.id),
-    eq(teamMembers.userId, user.id),
+    sql`exists (
+      select 1
+      from ${taskShares}
+      left join ${teamMembers}
+        on ${teamMembers.teamId} = ${taskShares.teamId} and ${teamMembers.userId} = ${user.id}
+      where ${taskShares.taskId} = ${tasks.id}
+        and (${taskShares.userId} = ${user.id} or ${teamMembers.userId} is not null)
+    )`,
   ];
-  if (isCompanyUser(user.roles)) directConditions.push(eq(tasks.visibility, "COMPANY"));
-  return or(...directConditions);
+  if (isCompanyUser(user.roles)) conditions.push(eq(tasks.visibility, "COMPANY"));
+  return or(...conditions);
 }
 
 function personalViewRecipientCondition(user: AuthenticatedUser) {
   return or(
     eq(tasks.assigneeId, user.id),
-    eq(taskShares.userId, user.id),
-    eq(teamMembers.userId, user.id),
+    sql`exists (
+      select 1 from ${taskShares}
+      left join ${teamMembers}
+        on ${teamMembers.teamId} = ${taskShares.teamId} and ${teamMembers.userId} = ${user.id}
+      where ${taskShares.taskId} = ${tasks.id}
+        and (${taskShares.userId} = ${user.id} or ${teamMembers.userId} is not null)
+    )`,
   );
 }
 
 export async function canAccessStoredTask(user: AuthenticatedUser, taskId: string) {
   const { db } = getDatabaseClient();
   const [row] = await db
-    .selectDistinct({ id: tasks.id })
+    .select({ id: tasks.id })
     .from(tasks)
-    .leftJoin(taskShares, eq(tasks.id, taskShares.taskId))
-    .leftJoin(teamMembers, and(eq(taskShares.teamId, teamMembers.teamId), eq(teamMembers.userId, user.id)))
     .where(and(eq(tasks.id, taskId), accessCondition(user)))
     .limit(1);
   return Boolean(row);
@@ -59,7 +77,7 @@ export async function getTaskDetails(user: AuthenticatedUser, taskId: string) {
   const dueDateChanger = alias(users, "due_date_changer");
 
   const [task] = await db
-    .selectDistinct({
+    .select({
       id: tasks.id,
       title: tasks.title,
       description: tasks.description,
@@ -74,18 +92,16 @@ export async function getTaskDetails(user: AuthenticatedUser, taskId: string) {
       assigneeId: tasks.assigneeId,
       authorFirstName: author.firstName,
       authorLastName: author.lastName,
-      authorAvatarDataUrl: author.avatarDataUrl,
+      authorAvatarUrl: avatarUrlColumn(author),
       assigneeFirstName: assignee.firstName,
       assigneeLastName: assignee.lastName,
-      assigneeAvatarDataUrl: assignee.avatarDataUrl,
+      assigneeAvatarUrl: avatarUrlColumn(assignee),
       createdAt: tasks.createdAt,
       updatedAt: tasks.updatedAt,
     })
     .from(tasks)
     .innerJoin(author, eq(tasks.authorId, author.id))
     .innerJoin(assignee, eq(tasks.assigneeId, assignee.id))
-    .leftJoin(taskShares, eq(tasks.id, taskShares.taskId))
-    .leftJoin(teamMembers, and(eq(taskShares.teamId, teamMembers.teamId), eq(teamMembers.userId, user.id)))
     .where(and(eq(tasks.id, taskId), accessCondition(user)))
     .limit(1);
   if (!task) return null;
@@ -99,7 +115,7 @@ export async function getTaskDetails(user: AuthenticatedUser, taskId: string) {
         authorId: taskComments.authorId,
         authorFirstName: commentAuthor.firstName,
         authorLastName: commentAuthor.lastName,
-        authorAvatarDataUrl: commentAuthor.avatarDataUrl,
+        authorAvatarUrl: avatarUrlColumn(commentAuthor),
       })
       .from(taskComments)
       .innerJoin(commentAuthor, eq(taskComments.authorId, commentAuthor.id))
@@ -180,8 +196,8 @@ export async function listTasksForView(user: AuthenticatedUser, view: TaskView) 
   const assignee = alias(users, "assignee");
   const author = alias(users, "list_author");
 
-  const rows = await db
-    .selectDistinct({
+  const query = db
+    .select({
       id: tasks.id,
       title: tasks.title,
       description: tasks.description,
@@ -195,10 +211,10 @@ export async function listTasksForView(user: AuthenticatedUser, view: TaskView) 
       assigneeId: tasks.assigneeId,
       authorFirstName: author.firstName,
       authorLastName: author.lastName,
-      authorAvatarDataUrl: author.avatarDataUrl,
+      authorAvatarUrl: avatarUrlColumn(author),
       assigneeFirstName: assignee.firstName,
       assigneeLastName: assignee.lastName,
-      assigneeAvatarDataUrl: assignee.avatarDataUrl,
+      assigneeAvatarUrl: avatarUrlColumn(assignee),
       recurrenceRule: taskRecurrences.rule,
       recurrencePaused: taskRecurrences.isPaused,
       waitingReason: tasks.waitingReason,
@@ -209,26 +225,40 @@ export async function listTasksForView(user: AuthenticatedUser, view: TaskView) 
     .from(tasks)
     .innerJoin(author, eq(tasks.authorId, author.id))
     .innerJoin(assignee, eq(tasks.assigneeId, assignee.id))
-    .leftJoin(taskShares, eq(tasks.id, taskShares.taskId))
-    .leftJoin(teamMembers, and(eq(taskShares.teamId, teamMembers.teamId), eq(teamMembers.userId, user.id)))
     .leftJoin(taskRecurrences, eq(tasks.id, taskRecurrences.taskId))
-    .where(and(accessCondition(user), taskViewCondition(user, view)))
-    .orderBy(asc(tasks.dueAt), desc(tasks.createdAt));
-
+    .where(and(accessCondition(user), taskViewCondition(user, view)));
+  if (view === "done") return query.orderBy(desc(tasks.completedAt), desc(tasks.createdAt)).limit(DONE_VIEW_LIMIT);
+  const rows = await query.orderBy(asc(tasks.dueAt), desc(tasks.createdAt));
   return rows.sort((left, right) => taskPriorityRank(left.priority) - taskPriorityRank(right.priority));
 }
 
 export async function countTasksForView(user: AuthenticatedUser, view: TaskView) {
   const { db } = getDatabaseClient();
-  const [row] = await db
-    .select({ value: countDistinct(tasks.id) })
-    .from(tasks)
-    .leftJoin(taskShares, eq(tasks.id, taskShares.taskId))
-    .leftJoin(teamMembers, and(eq(taskShares.teamId, teamMembers.teamId), eq(teamMembers.userId, user.id)))
+  const [row] = await db.select({ value: count() }).from(tasks)
     .leftJoin(taskRecurrences, eq(tasks.id, taskRecurrences.taskId))
     .where(and(accessCondition(user), taskViewCondition(user, view)));
-
   return Number(row?.value ?? 0);
+}
+
+/** Counters for the dashboard summary, computed in one aggregate query instead of loading lists. */
+export async function countTasksByView(user: AuthenticatedUser) {
+  const { db } = getDatabaseClient();
+  const active = sql`${tasks.status} in ('OPEN', 'WAITING')`;
+  const [row] = await db
+    .select({
+      current: sql<number>`count(*) filter (where ${personalViewRecipientCondition(user)} and ${tasks.status} = 'OPEN')`.mapWith(Number),
+      overdue: sql<number>`count(*) filter (
+        where ${personalViewRecipientCondition(user)} and ${tasks.status} = 'OPEN' and ${tasks.dueAt} < now()
+      )`.mapWith(Number),
+      waiting: sql<number>`count(*) filter (where ${tasks.status} = 'WAITING')`.mapWith(Number),
+      delegated: sql<number>`count(*) filter (
+        where ${tasks.authorId} = ${user.id} and ${tasks.assigneeId} <> ${user.id} and ${active}
+      )`.mapWith(Number),
+      done: sql<number>`count(*) filter (where ${tasks.status} = 'COMPLETED')`.mapWith(Number),
+    })
+    .from(tasks)
+    .where(accessCondition(user));
+  return row ?? { current: 0, overdue: 0, waiting: 0, delegated: 0, done: 0 };
 }
 
 export async function listAssignableUsers(user: AuthenticatedUser) {
@@ -240,7 +270,7 @@ export async function listAssignableUsers(user: AuthenticatedUser) {
         firstName: users.firstName,
         lastName: users.lastName,
         email: users.email,
-        avatarDataUrl: users.avatarDataUrl,
+        avatarUrl: avatarUrlColumn(users),
       })
       .from(users)
       .where(eq(users.id, user.id));
@@ -252,7 +282,7 @@ export async function listAssignableUsers(user: AuthenticatedUser) {
       firstName: users.firstName,
       lastName: users.lastName,
       email: users.email,
-      avatarDataUrl: users.avatarDataUrl,
+      avatarUrl: avatarUrlColumn(users),
     })
     .from(users)
     .where(eq(users.isActive, true))

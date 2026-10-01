@@ -4,6 +4,7 @@ import type { ReactNode } from "react";
 import { getCurrentUser } from "@/auth/session";
 import { AppShell } from "@/components/app-shell";
 import { getNavigationCounts } from "@/navigation/queries";
+import { readFlashError } from "@/lib/flash";
 import { unreadNotificationCount } from "@/notifications/queries";
 
 import "./globals.css";
@@ -30,12 +31,13 @@ export default async function RootLayout({ children }: Readonly<{ children: Reac
   const user = await getCurrentUser();
   let content = children;
   if (user) {
-    const [unreadNotifications, navigationCounts] = await Promise.all([
+    const [unreadNotifications, navigationCounts, flashError] = await Promise.all([
       unreadNotificationCount(user.id),
       getNavigationCounts(user),
+      readFlashError(),
     ]);
     content = (
-      <AppShell navigationCounts={navigationCounts} unreadNotifications={unreadNotifications} user={user}>
+      <AppShell flashError={flashError} navigationCounts={navigationCounts} unreadNotifications={unreadNotifications} user={user}>
         {children}
       </AppShell>
     );

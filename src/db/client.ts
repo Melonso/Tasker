@@ -14,13 +14,12 @@ export function createDatabaseClient(maxConnections = 10) {
   };
 }
 
-export type DatabaseTransaction = Parameters<
-  Parameters<ReturnType<typeof createDatabaseClient>["db"]["transaction"]>[0]
->[0];
-
 let sharedClient: ReturnType<typeof createDatabaseClient> | undefined;
 
 export function getDatabaseClient() {
   sharedClient ??= createDatabaseClient();
   return sharedClient;
 }
+
+export type Database = ReturnType<typeof createDatabaseClient>["db"];
+export type DatabaseTransaction = Parameters<Parameters<Database["transaction"]>[0]>[0];

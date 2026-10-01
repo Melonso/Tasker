@@ -8,6 +8,8 @@ import { requireUser } from "@/auth/session";
 import { getDatabaseClient } from "@/db/client";
 import { auditEvents, notificationPreferences, users } from "@/db/schema";
 import { AvatarInputError, avatarDataUrlFromUpload } from "@/settings/avatar";
+import { rescheduleOverdueRemindersForAssignee } from "@/tasks/service";
+import { runFormAction } from "@/lib/flash";
 
 const fullHour = z.string().regex(/^(?:[01]\d|2[0-3]):00$/);
 const settingsSchema = z.object({
@@ -77,6 +79,12 @@ export async function updateUserSettingsAction(
         avatarUpdated: Boolean(avatarDataUrl),
       },
     });
+    if (overdueReminderHour !== user.overdueReminderHour || parsed.data.timeZone !== user.timeZone) {
+      await rescheduleOverdueRemindersForAssignee(tx, user.id, {
+        timeZone: parsed.data.timeZone,
+        overdueReminderHour,
+      });
+    }
   });
 
   revalidatePath("/settings");
@@ -85,48 +93,52 @@ export async function updateUserSettingsAction(
 }
 
 export async function removeAvatarAction() {
-  const user = await requireUser();
-  const { db } = getDatabaseClient();
-  await db.transaction(async (tx) => {
-    await tx
-      .update(users)
-      .set({ avatarDataUrl: null, updatedAt: new Date() })
-      .where(eq(users.id, user.id));
-    await tx.insert(auditEvents).values({
-      actorId: user.id,
-      action: "USER_AVATAR_REMOVED",
+  await runFormAction(async () => {
+    const user = await requireUser();
+    const { db } = getDatabaseClient();
+    await db.transaction(async (tx) => {
+      await tx
+        .update(users)
+        .set({ avatarDataUrl: null, updatedAt: new Date() })
+        .where(eq(users.id, user.id));
+      await tx.insert(auditEvents).values({
+        actorId: user.id,
+        action: "USER_AVATAR_REMOVED",
+      });
     });
+    revalidatePath("/settings");
+    revalidatePath("/", "layout");
   });
-  revalidatePath("/settings");
-  revalidatePath("/", "layout");
 }
 
 export async function updateNotificationPreferencesAction(formData: FormData) {
-  const user = await requireUser();
-  const preferences = [
-    { channel: "IN_APP" as const, enabled: true },
-    { channel: "WEB_PUSH" as const, enabled: formData.get("webPushEnabled") === "on" },
-    { channel: "TELEGRAM" as const, enabled: formData.get("telegramEnabled") === "on" },
-  ];
-  const { db } = getDatabaseClient();
-  await db.transaction(async (tx) => {
-    for (const preference of preferences) {
-      await tx
-        .insert(notificationPreferences)
-        .values({ userId: user.id, ...preference })
-        .onConflictDoUpdate({
-          target: [notificationPreferences.userId, notificationPreferences.channel],
-          set: { enabled: preference.enabled, updatedAt: new Date() },
-        });
-    }
-    await tx.insert(auditEvents).values({
-      actorId: user.id,
-      action: "NOTIFICATION_PREFERENCES_UPDATED",
-      metadata: {
-        webPushEnabled: preferences[1].enabled,
-        telegramEnabled: preferences[2].enabled,
-      },
+  await runFormAction(async () => {
+    const user = await requireUser();
+    const preferences = [
+      { channel: "IN_APP" as const, enabled: true },
+      { channel: "WEB_PUSH" as const, enabled: formData.get("webPushEnabled") === "on" },
+      { channel: "TELEGRAM" as const, enabled: formData.get("telegramEnabled") === "on" },
+    ];
+    const { db } = getDatabaseClient();
+    await db.transaction(async (tx) => {
+      for (const preference of preferences) {
+        await tx
+          .insert(notificationPreferences)
+          .values({ userId: user.id, ...preference })
+          .onConflictDoUpdate({
+            target: [notificationPreferences.userId, notificationPreferences.channel],
+            set: { enabled: preference.enabled, updatedAt: new Date() },
+          });
+      }
+      await tx.insert(auditEvents).values({
+        actorId: user.id,
+        action: "NOTIFICATION_PREFERENCES_UPDATED",
+        metadata: {
+          webPushEnabled: preferences[1].enabled,
+          telegramEnabled: preferences[2].enabled,
+        },
+      });
     });
+    revalidatePath("/settings");
   });
-  revalidatePath("/settings");
 }

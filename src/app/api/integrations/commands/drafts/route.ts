@@ -9,10 +9,11 @@ import {
   telegramTaskSummary,
 } from "@/integrations/drafts";
 import { authorizeIntegrationRequest } from "@/integrations/service-auth";
+import { dateKeySchema, timeKeySchema } from "@/lib/dates";
 import { userForTelegramId } from "@/integrations/users";
 
-const date = z.string().regex(/^\d{4}-\d{2}-\d{2}$/);
-const time = z.string().regex(/^\d{2}:\d{2}$/);
+const date = dateKeySchema;
+const time = timeKeySchema;
 const common = {
   telegramUserId: z.string().trim().min(1).max(80),
   sourceEventId: z.string().trim().min(1).max(200),

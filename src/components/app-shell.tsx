@@ -2,13 +2,15 @@
 
 import Link from "next/link";
 import { usePathname, useSearchParams } from "next/navigation";
-import { useState, type ReactNode } from "react";
+import { useEffect, useState, type ReactNode } from "react";
 
 import { logoutAction } from "@/auth/actions";
 import type { AuthenticatedUser } from "@/auth/session";
 import { UserAvatar } from "@/components/user-avatar";
 import { NavIcon, type NavIconName } from "@/components/nav-icon";
 import type { NavigationCounts } from "@/navigation/queries";
+
+const FLASH_ERROR_COOKIE = "tasker_flash_error";
 
 const navigation: Array<{ href: string; label: string; icon: NavIconName; countKey: keyof NavigationCounts }> = [
   { href: "/", label: "Dzisiaj", icon: "home", countKey: "today" },
@@ -25,12 +27,19 @@ export function AppShell({
   user,
   unreadNotifications,
   navigationCounts,
+  flashError,
 }: {
   children: ReactNode;
   user: AuthenticatedUser;
   unreadNotifications: number;
   navigationCounts: NavigationCounts;
+  flashError: string | null;
 }) {
+  const [dismissedFlash, setDismissedFlash] = useState<string | null>(null);
+  useEffect(() => {
+    // The message was delivered with this render; drop the cookie so it does not reappear.
+    if (flashError) document.cookie = `${FLASH_ERROR_COOKIE}=; Max-Age=0; path=/; SameSite=Lax`;
+  }, [flashError]);
   const pathname = usePathname();
   const searchParams = useSearchParams();
   const activeView = searchParams.get("view");
@@ -100,7 +109,7 @@ export function AppShell({
             </Link>
           ) : null}
           <div className="user-chip">
-            <UserAvatar avatarDataUrl={user.avatarDataUrl} firstName={user.firstName} lastName={user.lastName} />
+            <UserAvatar avatarUrl={user.avatarUrl} firstName={user.firstName} lastName={user.lastName} />
             <span>
               <strong>{user.firstName} {user.lastName}</strong>
               <small>{user.roles.includes("APP_ADMIN") ? "Administrator aplikacji" : "Użytkownik Taskera"}</small>
@@ -160,7 +169,7 @@ export function AppShell({
             {mobileMenuOpen ? (
               <div className="mobile-menu-panel">
                 <div className="mobile-menu-user">
-                  <UserAvatar avatarDataUrl={user.avatarDataUrl} firstName={user.firstName} lastName={user.lastName} />
+                  <UserAvatar avatarUrl={user.avatarUrl} firstName={user.firstName} lastName={user.lastName} />
                   <span>
                     <strong>{user.firstName} {user.lastName}</strong>
                     <small>{user.roles.includes("APP_ADMIN") ? "Administrator aplikacji" : "Użytkownik Taskera"}</small>
@@ -203,7 +212,15 @@ export function AppShell({
         </nav>
       </aside>
 
-      <main className="main-content">{children}</main>
+      <main className="main-content">
+        {flashError && flashError !== dismissedFlash ? (
+          <div className="flash-error" role="alert">
+            <span>{flashError}</span>
+            <button aria-label="Zamknij komunikat" onClick={() => setDismissedFlash(flashError)} type="button">×</button>
+          </div>
+        ) : null}
+        {children}
+      </main>
     </div>
   );
 }

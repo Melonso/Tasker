@@ -3,6 +3,7 @@ import { eq } from "drizzle-orm";
 import type { AuthenticatedUser } from "@/auth/session";
 import { getDatabaseClient } from "@/db/client";
 import { roles, telegramConnections, userRoles, users } from "@/db/schema";
+import { avatarUrlColumn } from "@/users/avatar-url";
 
 export async function userForTelegramId(telegramUserId: string): Promise<AuthenticatedUser | null> {
   const { db } = getDatabaseClient();
@@ -12,7 +13,7 @@ export async function userForTelegramId(telegramUserId: string): Promise<Authent
       email: users.email,
       firstName: users.firstName,
       lastName: users.lastName,
-      avatarDataUrl: users.avatarDataUrl,
+      avatarUrl: avatarUrlColumn(users),
       timeZone: users.timeZone,
       defaultTaskHour: users.defaultTaskHour,
       overdueReminderHour: users.overdueReminderHour,
@@ -32,7 +33,7 @@ export async function userForTelegramId(telegramUserId: string): Promise<Authent
     email: first.email,
     firstName: first.firstName,
     lastName: first.lastName,
-    avatarDataUrl: first.avatarDataUrl,
+    avatarUrl: first.avatarUrl,
     timeZone: first.timeZone,
     defaultTaskHour: first.defaultTaskHour,
     overdueReminderHour: first.overdueReminderHour,
@@ -49,7 +50,7 @@ export async function userForId(userId: string): Promise<AuthenticatedUser | nul
       email: users.email,
       firstName: users.firstName,
       lastName: users.lastName,
-      avatarDataUrl: users.avatarDataUrl,
+      avatarUrl: avatarUrlColumn(users),
       timeZone: users.timeZone,
       defaultTaskHour: users.defaultTaskHour,
       overdueReminderHour: users.overdueReminderHour,
@@ -68,7 +69,7 @@ export async function userForId(userId: string): Promise<AuthenticatedUser | nul
     email: first.email,
     firstName: first.firstName,
     lastName: first.lastName,
-    avatarDataUrl: first.avatarDataUrl,
+    avatarUrl: first.avatarUrl,
     timeZone: first.timeZone,
     defaultTaskHour: first.defaultTaskHour,
     overdueReminderHour: first.overdueReminderHour,

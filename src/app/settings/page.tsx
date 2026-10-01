@@ -138,7 +138,7 @@ export default async function SettingsPage() {
           <div><p className="eyebrow">Preferencje</p><h2>Terminy i przypomnienia</h2></div>
         </div>
         <SettingsForm
-          avatarDataUrl={user.avatarDataUrl}
+          avatarUrl={user.avatarUrl}
           defaultTaskHour={user.defaultTaskHour}
           firstName={user.firstName}
           language={user.language}

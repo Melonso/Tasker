@@ -37,6 +37,18 @@ export function nextRecurringDueAt(currentDueAt: Date, rule: RecurrenceRule, tim
   );
 }
 
+/**
+ * The first occurrence strictly after `now`, starting from a candidate occurrence. Completing a
+ * recurring task late must not create an occurrence that is already overdue.
+ */
+export function firstRecurringDueAtAfter(candidate: Date, rule: RecurrenceRule, timeZone: string, now: Date) {
+  let next = candidate;
+  for (let step = 0; step < 1_000 && next.getTime() <= now.getTime(); step += 1) {
+    next = nextRecurringDueAt(next, rule, timeZone);
+  }
+  return next;
+}
+
 export function recurrenceLabel(rule: RecurrenceRule) {
   const unit = rule.frequency === "DAILY" ? "dzień" : rule.frequency === "WEEKLY" ? "tydzień" : "miesiąc";
   if (rule.interval === 1) return `Co ${unit}`;

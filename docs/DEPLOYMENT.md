@@ -239,6 +239,27 @@ Migracja `0007_shallow_captain_midlands.sql` dodaje nullable pole `tasks.planned
 
 Migracja `0008_famous_trauma.sql` jest rozszerzająca: dodaje wyłącznie nowe typy, tabele, indeksy i nullable `notifications.target_path`. Starsza wersja aplikacji ignoruje te elementy, dlatego rollback obrazu nie wymaga cofania migracji; przed jej uruchomieniem nadal obowiązuje pełny backup PostgreSQL.
 
+### Wdrożenie poprawek z code review (przygotowane, jeszcze niewykonane)
+
+Gałąź `claude/relaxed-gauss-23rram` zawiera poprawki opisane w `docs/FIX_ROADMAP.md`. Pełna instrukcja dla wykonującego wdrożenie, łącznie z obowiązkowym scaleniem z kodem produkcyjnym spoza GitHuba (notatki, `taskScope`), znajduje się w `docs/DEPLOY_HANDOFF_2026-10-01.md`. Wdrożenie wykonujemy jednorazowo, po zakończeniu wszystkich punktów, w tej kolejności:
+
+1. Wykonać i zweryfikować backup: `deploy/backup-tasker.sh`.
+2. Sprawdzić, że chroniony `.env` zawiera jawne `SESSION_SECRET` oraz `INTEGRATION_ENCRYPTION_KEY` (np. `grep -c '^SESSION_SECRET=' .env`, bez wyświetlania wartości). Nowa wersja odmawia startu w produkcji, jeżeli którejś brakuje — dotychczas po cichu używała wartości deweloperskich.
+3. Sprawdzić, czy zespoły firmowe zawierają osoby zewnętrzne (nowa reguła nie usuwa istniejących członkostw):
+   `select t.name, u.email from teams t join team_members m on m.team_id = t.id join users u on u.id = m.user_id join user_roles ur on ur.user_id = u.id join roles r on r.id = ur.role_id where not t.is_external and r.key = 'EXTERNAL';`
+   Wynik należy omówić z właścicielem przed ewentualną zmianą.
+4. Zbudować obrazy i uruchomić migrację `0010_login_attempts.sql`. Migracja tylko dodaje tabelę `login_attempts` z indeksami, dlatego rollback obrazu nie wymaga jej cofania.
+5. Wymienić procesy `web` i `worker`, sprawdzić `/api/health/ready` i `/api/health/operations`.
+6. Dopiero po aplikacji zaktualizować w n8n workflow „Tasker — przypomnienia Telegram” (wyjście błędu per wiadomość, raport `success:false`) oraz „Tasker — Telegram + AI” (tylko czaty prywatne, polskie etykiety podglądu). Przy okazji zmienić nazwę poświadczenia „Tasket Telegram Bot” na „Tasker Telegram Bot”.
+7. Smoke test: logowanie, utworzenie i zakończenie zadania, avatar w ustawieniach, `/dzisiaj` w Telegramie, szkic z potwierdzeniem, testowy push.
+
+Zmiany zachowania istotne operacyjnie:
+
+- `/api/health/operations` zwraca `degraded` dla nieświeżego lub zdegradowanego workera, nieudanego przypomnienia w ciągu 24 h albo co najmniej 3 nieudanych dostaw w ciągu 24 h. Pojedyncza nieudana dostawa nie wyłącza już stanu `operational` na dobę, a nieosiągalni odbiorcy Telegrama są oznaczani jako `SKIPPED`.
+- Worker wykonuje każdy krok skanu niezależnie i zapisuje heartbeat ze statusem `HEALTHY` albo `DEGRADED` oraz wynikiem każdego kroku. Nowy krok porządkowy usuwa wygasłe sesje, zużyte kody Telegrama i próby logowania starsze niż 30 dni.
+- Logowanie blokuje konto po 5 nieudanych próbach w ciągu 15 minut (oraz adres IP po 20); adres IP pochodzi z nagłówka `CF-Connecting-IP` ustawianego przez Cloudflare.
+- Aplikacja wysyła nagłówki CSP, `X-Frame-Options: DENY`, `Referrer-Policy`, `Permissions-Policy` i HSTS.
+
 ## 10. Kopie zapasowe i monitoring
 
 Minimum produkcyjne:
@@ -282,4 +303,6 @@ Klucz poza serwerem, pełna próba awaryjna oraz automatyczna retencja Google Dr
 
 ### Bramka 0 przed poprawkami code review — 2026-10-01
 
-Odnaleziono niezacommitowany lokalny kod produkcyjny: Notatki, rodzaj zadania (scope / 	askScope), kontrakt integracyjny 6, podział list firmowe/prywatne, liczniki nawigacji, powiadomienia o dostępie i poprawki mobilne. Odczyt produkcji potwierdził 10 migracji (0000–0009); czasy journalu i sumy SHA-256 wszystkich plików SQL odpowiadają tabeli drizzle.__drizzle_migrations. Produkcja zawiera notes, note_reminder_schedules oraz tasks.scope. Wszystkie 141 plików w src, drizzle i n8n odpowiadają lokalnej kopii poza rozszerzonym lokalnie drafts.test.ts. Katalog produkcyjny nie jest repozytorium Git; kod przekazywano jako archiwum. Bramka 0 zaliczona; scalenie i wdrożenie poprawek jeszcze niewykonane.
+Odnaleziono niezacommitowany lokalny kod produkcyjny: Notatki, rodzaj zadania (`scope` / `taskScope`), kontrakt integracyjny 6, podział list firmowe/prywatne, liczniki nawigacji, powiadomienia o dostępie i poprawki mobilne. Odczyt produkcji potwierdził 10 migracji (0000–0009); czasy journalu i sumy SHA-256 wszystkich plików SQL odpowiadają tabeli `drizzle.__drizzle_migrations`. Produkcja zawiera `notes`, `note_reminder_schedules` oraz `tasks.scope`. Wszystkie 141 plików w `src`, `drizzle` i `n8n` odpowiadają lokalnej kopii poza rozszerzonym lokalnie `drafts.test.ts`. Katalog produkcyjny nie jest repozytorium Git; kod przekazywano jako archiwum. Stan produkcyjny zapisano na `main` jako `7db1494`.
+
+Scalenie zachowuje rodzaj zadania i powiadomienia o dostępie we wspólnych transakcjach, produkcyjne filtry udostępnień w widokach osobistych przez `EXISTS`, liczniki nawigacji oraz krok przypomnień notatek w izolowanym skanie workera. Zmiana rodzaju i priorytetu korzysta z blokady aktywnego zadania i obsługi błędu w istniejącym kontrolowanym selekcie; zakończone i anulowane zadania nie podlegają tym mutacjom. Migrację logowania przenumerowano na `0010_login_attempts.sql`; zawiera tylko tabelę i dwa indeksy. Weryfikacja 2026-10-01: frozen install, typecheck, lint, 85 testów jednostkowych, 28 integracyjnych oraz build przeszły. Testy potwierdzają zachowanie `COMPANY` niezależnie od prywatnej widoczności przy wyścigu zatwierdzeń szkicu i zakończeń cyklu. Wdrożenie poprawek jeszcze niewykonane.

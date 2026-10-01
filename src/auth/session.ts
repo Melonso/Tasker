@@ -6,9 +6,11 @@ import { and, eq, gt } from "drizzle-orm";
 
 import { getDatabaseClient } from "@/db/client";
 import { roles, sessions, userRoles, users } from "@/db/schema";
+import { avatarUrlColumn } from "@/users/avatar-url";
 
 const SESSION_COOKIE = "tasker_session";
 const SESSION_DURATION_SECONDS = 30 * 24 * 60 * 60;
+const LAST_SEEN_UPDATE_INTERVAL_MS = 5 * 60 * 1000;
 
 function hashSessionToken(token: string) {
   return createHash("sha256").update(token).digest("hex");
@@ -19,7 +21,7 @@ export interface AuthenticatedUser {
   email: string;
   firstName: string;
   lastName: string;
-  avatarDataUrl: string | null;
+  avatarUrl: string | null;
   timeZone: string;
   defaultTaskHour: number;
   overdueReminderHour: number;
@@ -64,11 +66,13 @@ export const getCurrentUser = cache(async (): Promise<AuthenticatedUser | null> 
       email: users.email,
       firstName: users.firstName,
       lastName: users.lastName,
-      avatarDataUrl: users.avatarDataUrl,
+      avatarUrl: avatarUrlColumn(users),
       timeZone: users.timeZone,
       defaultTaskHour: users.defaultTaskHour,
       overdueReminderHour: users.overdueReminderHour,
       language: users.language,
+      sessionId: sessions.id,
+      lastSeenAt: sessions.lastSeenAt,
       role: roles.key,
     })
     .from(sessions)
@@ -85,13 +89,16 @@ export const getCurrentUser = cache(async (): Promise<AuthenticatedUser | null> 
 
   const first = rows[0];
   if (!first) return null;
+  if (Date.now() - first.lastSeenAt.getTime() > LAST_SEEN_UPDATE_INTERVAL_MS) {
+    await db.update(sessions).set({ lastSeenAt: new Date() }).where(eq(sessions.id, first.sessionId));
+  }
 
   return {
     id: first.id,
     email: first.email,
     firstName: first.firstName,
     lastName: first.lastName,
-    avatarDataUrl: first.avatarDataUrl,
+    avatarUrl: first.avatarUrl,
     timeZone: first.timeZone,
     defaultTaskHour: first.defaultTaskHour,
     overdueReminderHour: first.overdueReminderHour,

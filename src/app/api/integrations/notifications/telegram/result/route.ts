@@ -18,7 +18,7 @@ export async function POST(request: Request) {
   if (!parsed.success) {
     return NextResponse.json({ error: "INVALID_REQUEST", issues: parsed.error.issues }, { status: 400 });
   }
-  const updated = await reportTelegramDelivery(parsed.data);
-  if (!updated) return NextResponse.json({ error: "DELIVERY_NOT_FOUND" }, { status: 404 });
-  return NextResponse.json({ status: parsed.data.success ? "SENT" : "FAILED" });
+  const result = await reportTelegramDelivery(parsed.data);
+  if (!result) return NextResponse.json({ error: "DELIVERY_NOT_FOUND" }, { status: 404 });
+  return NextResponse.json({ status: result.status, retry: !parsed.data.success && !result.permanent });
 }

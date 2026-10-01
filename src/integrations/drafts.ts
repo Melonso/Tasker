@@ -1,4 +1,5 @@
-import { and, asc, eq, inArray, or, sql } from "drizzle-orm";
+import { and, asc, eq, gte, inArray, lt, or } from "drizzle-orm";
+import { sql } from "drizzle-orm";
 import { alias } from "drizzle-orm/pg-core";
 
 import type { AuthenticatedUser } from "@/auth/session";
@@ -325,24 +326,19 @@ export async function telegramTaskSummary(user: AuthenticatedUser, view: Telegra
   const { start, end } = telegramSummaryBounds(now, user.timeZone, view);
   const { db } = getDatabaseClient();
   const author = alias(users, "telegram_summary_author");
-  const rows = await db
-    .select({
-      id: tasks.id,
-      title: tasks.title,
-      dueAt: tasks.dueAt,
-      priority: tasks.priority,
-      taskScope: tasks.scope,
-      author: sql<string>`${author.firstName} || ' ' || ${author.lastName}`,
-    })
+  return db
+    .select({ id: tasks.id, title: tasks.title, dueAt: tasks.dueAt, priority: tasks.priority, taskScope: tasks.scope, author: sql<string>`${author.firstName} || ' ' || ${author.lastName}` })
     .from(tasks)
     .innerJoin(author, eq(tasks.authorId, author.id))
-    .where(and(eq(tasks.assigneeId, user.id), inArray(tasks.status, ["OPEN", "WAITING"])))
-    .orderBy(asc(tasks.dueAt), asc(tasks.createdAt));
-  return rows
-    .filter((task) => task.dueAt && (view === "OVERDUE"
-      ? task.dueAt < now
-      : task.dueAt >= start && task.dueAt < end))
-    .slice(0, 20);
+    .where(
+      and(
+        eq(tasks.assigneeId, user.id),
+        inArray(tasks.status, ["OPEN", "WAITING"]),
+        view === "OVERDUE" ? lt(tasks.dueAt, now) : and(gte(tasks.dueAt, start), lt(tasks.dueAt, end)),
+      ),
+    )
+    .orderBy(asc(tasks.dueAt), asc(tasks.createdAt))
+    .limit(20);
 }
 
 const telegramOverviewViews = ["current", "waiting", "delegated", "recurring"] as const satisfies readonly TaskView[];
