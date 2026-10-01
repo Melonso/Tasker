@@ -3,6 +3,7 @@ import type { ReactNode } from "react";
 
 import { getCurrentUser } from "@/auth/session";
 import { AppShell } from "@/components/app-shell";
+import { readFlashError } from "@/lib/flash";
 import { unreadNotificationCount } from "@/notifications/queries";
 
 import "./globals.css";
@@ -22,11 +23,13 @@ export const viewport: Viewport = {
 
 export default async function RootLayout({ children }: Readonly<{ children: ReactNode }>) {
   const user = await getCurrentUser();
-  const unreadNotifications = user ? await unreadNotificationCount(user.id) : 0;
+  const [unreadNotifications, flashError] = user
+    ? await Promise.all([unreadNotificationCount(user.id), readFlashError()])
+    : [0, null];
   return (
     <html lang="pl">
       <body>
-        {user ? <AppShell unreadNotifications={unreadNotifications} user={user}>{children}</AppShell> : children}
+        {user ? <AppShell flashError={flashError} unreadNotifications={unreadNotifications} user={user}>{children}</AppShell> : children}
       </body>
     </html>
   );

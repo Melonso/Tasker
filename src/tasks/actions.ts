@@ -24,6 +24,8 @@ import {
   updateTaskRecurrenceForUser,
   updateTaskSharesForUser,
 } from "./service";
+import { dateKeySchema, timeKeySchema } from "@/lib/dates";
+import { runFormAction } from "@/lib/flash";
 
 const taskSchema = z.object({
   title: z.string().trim().min(3, "Tytuł musi zawierać co najmniej 3 znaki.").max(300),
@@ -31,8 +33,8 @@ const taskSchema = z.object({
   assigneeId: z.uuid(),
   visibility: z.enum(["PRIVATE", "COMPANY", "SHARED"]),
   priority: z.enum(["LOW", "NORMAL", "HIGH", "URGENT"]),
-  dueDate: z.string().regex(/^\d{4}-\d{2}-\d{2}$/).optional().or(z.literal("")),
-  dueTime: z.string().regex(/^\d{2}:\d{2}$/).optional().or(z.literal("")),
+  dueDate: dateKeySchema.optional().or(z.literal("")),
+  dueTime: timeKeySchema.optional().or(z.literal("")),
   recurrenceFrequency: z.enum(["NONE", "DAILY", "WEEKLY", "MONTHLY"]),
   recurrenceInterval: z.coerce.number().int().min(1).max(365),
   planForToday: z.boolean(),
@@ -40,8 +42,8 @@ const taskSchema = z.object({
 
 const rescheduleSchema = z.object({
   taskId: z.uuid(),
-  dueDate: z.string().regex(/^\d{4}-\d{2}-\d{2}$/),
-  dueTime: z.string().regex(/^\d{2}:\d{2}$/).optional().or(z.literal("")),
+  dueDate: dateKeySchema,
+  dueTime: timeKeySchema.optional().or(z.literal("")),
 });
 
 const waitingSchema = z.object({
@@ -126,127 +128,151 @@ export async function createTaskAction(
 }
 
 export async function completeTaskAction(formData: FormData) {
-  const user = await requireUser();
-  const taskId = z.uuid().parse(formData.get("taskId"));
-  await completeTaskForUser(user, taskId);
-  revalidatePath("/");
-  revalidatePath(`/tasks/${taskId}`);
+  await runFormAction(async () => {
+    const user = await requireUser();
+    const taskId = z.uuid().parse(formData.get("taskId"));
+    await completeTaskForUser(user, taskId);
+    revalidatePath("/");
+    revalidatePath(`/tasks/${taskId}`);
+  });
 }
 
 export async function rescheduleTaskAction(formData: FormData) {
-  const user = await requireUser();
-  const parsed = rescheduleSchema.parse({
-    taskId: formData.get("taskId"),
-    dueDate: formData.get("dueDate"),
-    dueTime: formData.get("dueTime"),
+  await runFormAction(async () => {
+    const user = await requireUser();
+    const parsed = rescheduleSchema.parse({
+      taskId: formData.get("taskId"),
+      dueDate: formData.get("dueDate"),
+      dueTime: formData.get("dueTime"),
+    });
+    const newDueAt = dueAtFromInput(parsed.dueDate, parsed.dueTime, user);
+    if (!newDueAt) throw new TaskInputError("Nowy termin jest wymagany.");
+    await rescheduleTaskForUser(user, parsed.taskId, newDueAt);
+    revalidatePath("/");
+    revalidatePath(`/tasks/${parsed.taskId}`);
   });
-  const newDueAt = dueAtFromInput(parsed.dueDate, parsed.dueTime, user);
-  if (!newDueAt) throw new TaskInputError("Nowy termin jest wymagany.");
-  await rescheduleTaskForUser(user, parsed.taskId, newDueAt);
-  revalidatePath("/");
-  revalidatePath(`/tasks/${parsed.taskId}`);
 }
 
 export async function rescheduleTaskPresetAction(formData: FormData) {
-  const user = await requireUser();
-  const taskId = z.uuid().parse(formData.get("taskId"));
-  const preset = z.enum(["TOMORROW", "NEXT_WEEK"]).parse(formData.get("preset"));
-  const { db } = getDatabaseClient();
-  const [task] = await db.select({ dueAt: tasks.dueAt }).from(tasks).where(eq(tasks.id, taskId)).limit(1);
-  const dueDate = localDateKeyAfterDays(new Date(), user.timeZone, preset === "TOMORROW" ? 1 : 7);
-  const dueTime = task?.dueAt ? localTimeKey(task.dueAt, user.timeZone) : undefined;
-  const newDueAt = dueAtFromInput(dueDate, dueTime, user);
-  if (!newDueAt) throw new TaskInputError("Nie udało się wyznaczyć nowego terminu.");
-  await rescheduleTaskForUser(user, taskId, newDueAt);
-  revalidatePath("/");
-  revalidatePath(`/tasks/${taskId}`);
+  await runFormAction(async () => {
+    const user = await requireUser();
+    const taskId = z.uuid().parse(formData.get("taskId"));
+    const preset = z.enum(["TOMORROW", "NEXT_WEEK"]).parse(formData.get("preset"));
+    const { db } = getDatabaseClient();
+    const [task] = await db.select({ dueAt: tasks.dueAt }).from(tasks).where(eq(tasks.id, taskId)).limit(1);
+    const dueDate = localDateKeyAfterDays(new Date(), user.timeZone, preset === "TOMORROW" ? 1 : 7);
+    const dueTime = task?.dueAt ? localTimeKey(task.dueAt, user.timeZone) : undefined;
+    const newDueAt = dueAtFromInput(dueDate, dueTime, user);
+    if (!newDueAt) throw new TaskInputError("Nie udało się wyznaczyć nowego terminu.");
+    await rescheduleTaskForUser(user, taskId, newDueAt);
+    revalidatePath("/");
+    revalidatePath(`/tasks/${taskId}`);
+  });
 }
 
 export async function setTaskPlannedForTodayAction(formData: FormData) {
-  const user = await requireUser();
-  const taskId = z.uuid().parse(formData.get("taskId"));
-  const planned = z.enum(["true", "false"]).parse(formData.get("planned")) === "true";
-  await setTaskPlannedForDateForUser(user, taskId, planned ? localDateKey(new Date(), user.timeZone) : null);
-  revalidatePath("/");
-  revalidatePath(`/tasks/${taskId}`);
+  await runFormAction(async () => {
+    const user = await requireUser();
+    const taskId = z.uuid().parse(formData.get("taskId"));
+    const planned = z.enum(["true", "false"]).parse(formData.get("planned")) === "true";
+    await setTaskPlannedForDateForUser(user, taskId, planned ? localDateKey(new Date(), user.timeZone) : null);
+    revalidatePath("/");
+    revalidatePath(`/tasks/${taskId}`);
+  });
 }
 
 export async function waitTaskAction(formData: FormData) {
-  const user = await requireUser();
-  const parsed = waitingSchema.parse({ taskId: formData.get("taskId"), reason: formData.get("reason") });
-  await setTaskWaitingForUser(user, parsed.taskId, parsed.reason);
-  revalidatePath("/");
-  revalidatePath(`/tasks/${parsed.taskId}`);
+  await runFormAction(async () => {
+    const user = await requireUser();
+    const parsed = waitingSchema.parse({ taskId: formData.get("taskId"), reason: formData.get("reason") });
+    await setTaskWaitingForUser(user, parsed.taskId, parsed.reason);
+    revalidatePath("/");
+    revalidatePath(`/tasks/${parsed.taskId}`);
+  });
 }
 
 export async function resumeTaskAction(formData: FormData) {
-  const user = await requireUser();
-  const { taskId } = taskIdSchema.parse({ taskId: formData.get("taskId") });
-  await resumeTaskForUser(user, taskId);
-  revalidatePath("/");
-  revalidatePath(`/tasks/${taskId}`);
+  await runFormAction(async () => {
+    const user = await requireUser();
+    const { taskId } = taskIdSchema.parse({ taskId: formData.get("taskId") });
+    await resumeTaskForUser(user, taskId);
+    revalidatePath("/");
+    revalidatePath(`/tasks/${taskId}`);
+  });
 }
 
 export async function cancelTaskAction(formData: FormData) {
-  const user = await requireUser();
-  const { taskId } = taskIdSchema.parse({ taskId: formData.get("taskId") });
-  await cancelTaskForUser(user, taskId);
-  revalidatePath("/");
-  revalidatePath(`/tasks/${taskId}`);
+  await runFormAction(async () => {
+    const user = await requireUser();
+    const { taskId } = taskIdSchema.parse({ taskId: formData.get("taskId") });
+    await cancelTaskForUser(user, taskId);
+    revalidatePath("/");
+    revalidatePath(`/tasks/${taskId}`);
+  });
 }
 
 export async function addTaskCommentAction(formData: FormData) {
-  const user = await requireUser();
-  const parsed = commentSchema.parse({ taskId: formData.get("taskId"), body: formData.get("body") });
-  if (!(await canAccessStoredTask(user, parsed.taskId))) {
-    throw new TaskInputError("Nie masz uprawnień do komentowania tego zadania.");
-  }
-  const { db } = getDatabaseClient();
-  await db.transaction(async (tx) => {
-    await tx.insert(taskComments).values({ taskId: parsed.taskId, authorId: user.id, body: parsed.body });
-    await tx.insert(auditEvents).values({
-      actorId: user.id,
-      taskId: parsed.taskId,
-      action: "TASK_COMMENT_ADDED",
+  await runFormAction(async () => {
+    const user = await requireUser();
+    const parsed = commentSchema.parse({ taskId: formData.get("taskId"), body: formData.get("body") });
+    if (!(await canAccessStoredTask(user, parsed.taskId))) {
+      throw new TaskInputError("Nie masz uprawnień do komentowania tego zadania.");
+    }
+    const { db } = getDatabaseClient();
+    await db.transaction(async (tx) => {
+      await tx.insert(taskComments).values({ taskId: parsed.taskId, authorId: user.id, body: parsed.body });
+      await tx.insert(auditEvents).values({
+        actorId: user.id,
+        taskId: parsed.taskId,
+        action: "TASK_COMMENT_ADDED",
+      });
     });
+    revalidatePath(`/tasks/${parsed.taskId}`);
   });
-  revalidatePath(`/tasks/${parsed.taskId}`);
 }
 
 export async function updateTaskRecurrenceAction(formData: FormData) {
-  const user = await requireUser();
-  const parsed = recurrenceSchema.parse({
-    taskId: formData.get("taskId"),
-    frequency: formData.get("frequency"),
-    interval: formData.get("interval"),
+  await runFormAction(async () => {
+    const user = await requireUser();
+    const parsed = recurrenceSchema.parse({
+      taskId: formData.get("taskId"),
+      frequency: formData.get("frequency"),
+      interval: formData.get("interval"),
+    });
+    await updateTaskRecurrenceForUser(user, parsed.taskId, { frequency: parsed.frequency, interval: parsed.interval });
+    revalidatePath("/");
+    revalidatePath(`/tasks/${parsed.taskId}`);
   });
-  await updateTaskRecurrenceForUser(user, parsed.taskId, { frequency: parsed.frequency, interval: parsed.interval });
-  revalidatePath("/");
-  revalidatePath(`/tasks/${parsed.taskId}`);
 }
 
 export async function pauseTaskRecurrenceAction(formData: FormData) {
-  const user = await requireUser();
-  const { taskId } = taskIdSchema.parse({ taskId: formData.get("taskId") });
-  await setTaskRecurrencePausedForUser(user, taskId, true);
-  revalidatePath("/");
-  revalidatePath(`/tasks/${taskId}`);
+  await runFormAction(async () => {
+    const user = await requireUser();
+    const { taskId } = taskIdSchema.parse({ taskId: formData.get("taskId") });
+    await setTaskRecurrencePausedForUser(user, taskId, true);
+    revalidatePath("/");
+    revalidatePath(`/tasks/${taskId}`);
+  });
 }
 
 export async function resumeTaskRecurrenceAction(formData: FormData) {
-  const user = await requireUser();
-  const { taskId } = taskIdSchema.parse({ taskId: formData.get("taskId") });
-  await setTaskRecurrencePausedForUser(user, taskId, false);
-  revalidatePath("/");
-  revalidatePath(`/tasks/${taskId}`);
+  await runFormAction(async () => {
+    const user = await requireUser();
+    const { taskId } = taskIdSchema.parse({ taskId: formData.get("taskId") });
+    await setTaskRecurrencePausedForUser(user, taskId, false);
+    revalidatePath("/");
+    revalidatePath(`/tasks/${taskId}`);
+  });
 }
 
 export async function updateTaskSharesAction(formData: FormData) {
-  const user = await requireUser();
-  const taskId = z.uuid().parse(formData.get("taskId"));
-  const userIds = z.array(z.uuid()).parse(formData.getAll("shareUserIds").map(String));
-  const teamIds = z.array(z.uuid()).parse(formData.getAll("shareTeamIds").map(String));
-  await updateTaskSharesForUser(user, taskId, userIds, teamIds);
-  revalidatePath("/");
-  revalidatePath(`/tasks/${taskId}`);
+  await runFormAction(async () => {
+    const user = await requireUser();
+    const taskId = z.uuid().parse(formData.get("taskId"));
+    const userIds = z.array(z.uuid()).parse(formData.getAll("shareUserIds").map(String));
+    const teamIds = z.array(z.uuid()).parse(formData.getAll("shareTeamIds").map(String));
+    await updateTaskSharesForUser(user, taskId, userIds, teamIds);
+    revalidatePath("/");
+    revalidatePath(`/tasks/${taskId}`);
+  });
 }

@@ -15,7 +15,10 @@ import {
   users,
 } from "@/db/schema";
 import { buildReminderSchedule, zonedDateTimeToUtc } from "@/domain/reminders";
-import { nextRecurringDueAt, type RecurrenceRule } from "@/domain/recurrence";
+import { firstRecurringDueAtAfter, nextRecurringDueAt, type RecurrenceRule } from "@/domain/recurrence";
+
+import { isCalendarDateKey, isClockTimeKey } from "@/lib/dates";
+import { UserInputError } from "@/lib/errors";
 
 import { isCompanyUser } from "./policy";
 
@@ -33,7 +36,7 @@ export interface CreateTaskInput {
   shareTeamIds?: string[];
 }
 
-export class TaskInputError extends Error {}
+export class TaskInputError extends UserInputError {}
 
 type StoredTask = typeof tasks.$inferSelect;
 
@@ -45,6 +48,9 @@ export function dueAtFromInput(
   user: Pick<AuthenticatedUser, "defaultTaskHour" | "timeZone">,
 ) {
   if (!dueDate) return null;
+  if (!isCalendarDateKey(dueDate) || (dueTime && !isClockTimeKey(dueTime))) {
+    throw new TaskInputError("Podaj prawidłową datę i godzinę.");
+  }
   const [year, month, day] = dueDate.split("-").map(Number);
   const [hour, minute] = dueTime ? dueTime.split(":").map(Number) : [user.defaultTaskHour, 0];
   return zonedDateTimeToUtc({ year, month, day, hour, minute }, user.timeZone);
@@ -298,7 +304,12 @@ export async function completeTaskForUser(
 
     let nextTaskId: string | null = null;
     if (recurrence && !recurrence.isPaused && task.dueAt) {
-      const nextDueAt = recurrence.nextOccurrenceAt ?? nextRecurringDueAt(task.dueAt, recurrence.rule, assignee.timeZone);
+      const nextDueAt = firstRecurringDueAtAfter(
+        recurrence.nextOccurrenceAt ?? nextRecurringDueAt(task.dueAt, recurrence.rule, assignee.timeZone),
+        recurrence.rule,
+        assignee.timeZone,
+        now,
+      );
       const [nextTask] = await tx
         .insert(tasks)
         .values({

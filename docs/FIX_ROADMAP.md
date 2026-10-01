@@ -28,14 +28,14 @@ Legenda statusu: ⬜ do zrobienia · 🔄 w toku · ✅ zrobione w kodzie (czeka
 | 2.1 | Domyślne sekrety używane w produkcji | Walidacja środowiska blokuje start produkcji bez sekretów | ✅ |
 | 2.2 | Logowanie: brak limitu prób, `scryptSync` blokuje event loop, nowa pula połączeń przy każdym logowaniu, różnica czasu dla nieistniejących kont | Limit prób w PostgreSQL, asynchroniczny scrypt, współdzielona pula, stały koszt weryfikacji | ✅ |
 | 2.3 | Worker: wyjątek jednego kroku blokuje pozostałe i heartbeat | Izolacja kroków, heartbeat zawsze aktualizowany ze statusem kroków | ✅ |
-| 2.4 | Błędy akcji kończą się ekranem awarii; UI pokazuje akcje niedozwolone dla użytkownika | `error.tsx`/`not-found.tsx`, akcje tylko dla uprawnionych, czytelne komunikaty | ⬜ |
-| 2.5 | `/api/health/operations` w stanie 503 przez 24 h po jednej nieudanej dostawie; ponawianie błędów trwałych | Progi zamiast „zero błędów”, bez ponawiania błędów trwałych | ⬜ |
-| 2.6 | Spóźnione przypomnienia „przed terminem” wysyłane po terminie | Pomijanie przypomnień przed terminem, gdy termin minął | ⬜ |
-| 2.7 | Kolejne wystąpienie cyklu po spóźnionym zakończeniu jest od razu zaległe | Przesuwanie następnego terminu do pierwszego w przyszłości | ⬜ |
-| 2.8 | Walidacja dat tylko regexem (`2026-02-31`, `25:99`) | Ścisła walidacja kalendarzowa w formularzach i API | ⬜ |
-| 2.9 | Brak nagłówków bezpieczeństwa | CSP, `frame-ancestors`, `X-Content-Type-Options`, `Referrer-Policy`, `Permissions-Policy` | ⬜ |
-| 2.10 | Bot Telegram odpowiada w grupach (ryzyko ujawnienia list zadań) | Workflow obsługuje wyłącznie czaty prywatne | ⬜ |
-| 2.11 | Pilotaż identyfikuje uczestników po edytowalnym imieniu i nazwisku | Identyfikacja po adresach e-mail z listy pilotażowej | ⬜ |
+| 2.4 | Błędy akcji kończą się ekranem awarii; UI pokazuje akcje niedozwolone dla użytkownika | `error.tsx`/`not-found.tsx`, akcje tylko dla uprawnionych, czytelne komunikaty | ✅ |
+| 2.5 | `/api/health/operations` w stanie 503 przez 24 h po jednej nieudanej dostawie; ponawianie błędów trwałych | Progi zamiast „zero błędów”, bez ponawiania błędów trwałych | ✅ |
+| 2.6 | Spóźnione przypomnienia „przed terminem” wysyłane po terminie | Pomijanie przypomnień przed terminem, gdy termin minął | ✅ |
+| 2.7 | Kolejne wystąpienie cyklu po spóźnionym zakończeniu jest od razu zaległe | Przesuwanie następnego terminu do pierwszego w przyszłości | ✅ |
+| 2.8 | Walidacja dat tylko regexem (`2026-02-31`, `25:99`) | Ścisła walidacja kalendarzowa w formularzach i API | ✅ |
+| 2.9 | Brak nagłówków bezpieczeństwa | CSP, `frame-ancestors`, `X-Content-Type-Options`, `Referrer-Policy`, `Permissions-Policy` | ✅ |
+| 2.10 | Bot Telegram odpowiada w grupach (ryzyko ujawnienia list zadań) | Workflow obsługuje wyłącznie czaty prywatne | ✅ |
+| 2.11 | Pilotaż identyfikuje uczestników po edytowalnym imieniu i nazwisku | Identyfikacja po adresach e-mail z listy pilotażowej | ✅ |
 
 ## Etap 3 — Niski priorytet i jakość
 

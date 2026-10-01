@@ -2,12 +2,14 @@
 
 import Link from "next/link";
 import { usePathname, useSearchParams } from "next/navigation";
-import { useState, type ReactNode } from "react";
+import { useEffect, useState, type ReactNode } from "react";
 
 import { logoutAction } from "@/auth/actions";
 import type { AuthenticatedUser } from "@/auth/session";
 import { UserAvatar } from "@/components/user-avatar";
 import { NavIcon, type NavIconName } from "@/components/nav-icon";
+
+const FLASH_ERROR_COOKIE = "tasker_flash_error";
 
 const navigation: Array<{ href: string; label: string; icon: NavIconName }> = [
   { href: "/", label: "Dzisiaj", icon: "home" },
@@ -22,11 +24,18 @@ export function AppShell({
   children,
   user,
   unreadNotifications,
+  flashError,
 }: {
   children: ReactNode;
   user: AuthenticatedUser;
   unreadNotifications: number;
+  flashError: string | null;
 }) {
+  const [dismissedFlash, setDismissedFlash] = useState<string | null>(null);
+  useEffect(() => {
+    // The message was delivered with this render; drop the cookie so it does not reappear.
+    if (flashError) document.cookie = `${FLASH_ERROR_COOKIE}=; Max-Age=0; path=/; SameSite=Lax`;
+  }, [flashError]);
   const pathname = usePathname();
   const searchParams = useSearchParams();
   const activeView = searchParams.get("view");
@@ -189,7 +198,15 @@ export function AppShell({
         </nav>
       </aside>
 
-      <main className="main-content">{children}</main>
+      <main className="main-content">
+        {flashError && flashError !== dismissedFlash ? (
+          <div className="flash-error" role="alert">
+            <span>{flashError}</span>
+            <button aria-label="Zamknij komunikat" onClick={() => setDismissedFlash(flashError)} type="button">×</button>
+          </div>
+        ) : null}
+        {children}
+      </main>
     </div>
   );
 }

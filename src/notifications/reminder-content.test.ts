@@ -47,4 +47,26 @@ describe("reminder content and freshness", () => {
       }),
     ).toBe(false);
   });
+
+  it("sends a pre-due reminder at its scheduled time", () => {
+    expect(
+      reminderMatchesCurrentTask({
+        kind: "ONE_HOUR_BEFORE",
+        scheduledAt: new Date("2026-09-01T12:00:00.000Z"),
+        dueAt,
+        now: new Date("2026-09-01T12:00:30.000Z"),
+      }),
+    ).toBe(true);
+  });
+
+  it("skips a pre-due reminder that is processed only after the deadline", () => {
+    expect(
+      reminderMatchesCurrentTask({
+        kind: "ONE_HOUR_BEFORE",
+        scheduledAt: new Date("2026-09-01T12:00:00.000Z"),
+        dueAt,
+        now: new Date("2026-09-01T14:00:00.000Z"),
+      }),
+    ).toBe(false);
+  });
 });

@@ -8,7 +8,7 @@ const MAX_DELIVERY_ATTEMPTS = 5;
 
 /**
  * Telegram errors that will not go away on retry: the user blocked the bot, deleted the chat or
- * deactivated the account. Such deliveries fail immediately and the connection needs attention.
+ * deactivated the account. Such deliveries are skipped and the connection needs attention.
  */
 export function isPermanentTelegramError(error: string | undefined) {
   if (!error) return false;
@@ -124,10 +124,10 @@ export async function reportTelegramDelivery({
     const [updated] = await tx
       .update(notificationDeliveries)
       .set({
-        status: success ? "SENT" : "FAILED",
+        // An unreachable recipient is not a system failure: the delivery is skipped, not retried.
+        status: success ? "SENT" : permanent ? "SKIPPED" : "FAILED",
         sentAt: success ? now : null,
         lastError: success ? null : (error || "Błąd wysyłki Telegram").slice(0, 2_000),
-        ...(permanent ? { attemptCount: MAX_DELIVERY_ATTEMPTS } : {}),
         updatedAt: now,
       })
       .where(
@@ -151,6 +151,6 @@ export async function reportTelegramDelivery({
           .where(eq(telegramConnections.userId, notification.userId));
       }
     }
-    return { status: success ? ("SENT" as const) : ("FAILED" as const), permanent };
+    return { status: success ? ("SENT" as const) : permanent ? ("SKIPPED" as const) : ("FAILED" as const), permanent };
   });
 }

@@ -74,6 +74,7 @@ function TaskRow({
   const overdue = task.isOverdue;
   const delegated = task.authorId === user.id && task.assigneeId !== user.id;
   const ownTask = task.assigneeId === user.id;
+  const editable = ownTask || task.authorId === user.id;
   const plannedToday = task.plannedForDate === today;
   const statusLabel = overdue
     ? "Po terminie"
@@ -88,12 +89,12 @@ function TaskRow({
 
   return (
     <article className="task-row database-task-row">
-      {task.status !== "COMPLETED" ? (
+      {task.status !== "COMPLETED" && editable ? (
         <form action={completeTaskAction}>
           <input name="taskId" type="hidden" value={task.id} />
           <button className="task-check" type="submit" aria-label={`Oznacz „${task.title}” jako zrobione`} />
         </form>
-      ) : <span className="task-check completed-check">✓</span>}
+      ) : task.status === "COMPLETED" ? <span className="task-check completed-check">✓</span> : <span className="task-check-placeholder" />}
       <UserAvatar avatarUrl={task.assigneeAvatarUrl} firstName={task.assigneeFirstName} lastName={task.assigneeLastName} size={34} />
       <div className="task-copy">
         <strong><Link className="task-title-link" href={`/tasks/${task.id}`}>{task.title}</Link></strong>
@@ -108,7 +109,7 @@ function TaskRow({
           {statusLabel}
         </span>
       ) : null}
-      {task.status !== "COMPLETED" ? (
+      {task.status !== "COMPLETED" && editable ? (
         <details className="task-menu">
           <summary className="more-button" aria-label={`Opcje zadania „${task.title}”`}>•••</summary>
           <div className="task-menu-popover">

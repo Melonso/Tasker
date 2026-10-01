@@ -42,6 +42,26 @@ describe("task completion", () => {
     expect(series.filter((task) => task.status === "OPEN")).toHaveLength(1);
   });
 
+  it("schedules the next occurrence in the future when an overdue recurring task is completed", async () => {
+    const author = await createTestUser();
+    const threeWeeksAgo = new Date(Date.now() - 21 * 24 * 60 * 60 * 1000);
+    const taskId = await createTaskForUser(author, {
+      title: "Cotygodniowy przegląd",
+      assigneeId: author.id,
+      visibility: "PRIVATE",
+      priority: "NORMAL",
+      dueAt: threeWeeksAgo,
+      recurrenceRule: { frequency: "WEEKLY", interval: 1 },
+    });
+
+    const { nextTaskId } = await completeTaskForUser(author, taskId);
+
+    const { db } = getDatabaseClient();
+    const [nextTask] = await db.select({ dueAt: tasks.dueAt }).from(tasks).where(eq(tasks.id, nextTaskId!));
+    expect(nextTask!.dueAt!.getTime()).toBeGreaterThan(Date.now());
+    expect(nextTask!.dueAt!.getTime()).toBeLessThanOrEqual(Date.now() + 8 * 24 * 60 * 60 * 1000);
+  });
+
   it("rejects completing a task that is already completed", async () => {
     const author = await createTestUser();
     const taskId = await createTaskForUser(author, {

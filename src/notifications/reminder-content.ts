@@ -58,6 +58,9 @@ export function reminderMatchesCurrentTask({
   now: Date;
 }) {
   if (kind === "OVERDUE_DAILY") return dueAt.getTime() <= now.getTime();
+  // A reminder delayed past the deadline (e.g. after worker downtime) would announce a due date
+  // that has already passed; the overdue reminder covers that case.
+  if (now.getTime() >= dueAt.getTime()) return false;
   const offset = reminderOffsets[kind];
   if (!offset) return false;
   return Math.abs(dueAt.getTime() - offset - scheduledAt.getTime()) < 1_000;

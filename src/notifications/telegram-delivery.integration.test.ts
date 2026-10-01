@@ -43,8 +43,8 @@ describe("Telegram delivery results", () => {
       error: "Forbidden: bot was blocked by the user",
     });
 
-    expect(result).toEqual({ status: "FAILED", permanent: true });
-    expect((await deliveryState(deliveryId)).attemptCount).toBe(5);
+    expect(result).toEqual({ status: "SKIPPED", permanent: true });
+    expect((await deliveryState(deliveryId)).status).toBe("SKIPPED");
     const { db } = getDatabaseClient();
     await db.execute(sql`update notification_deliveries set updated_at = now() - interval '1 hour'`);
     expect(await claimTelegramDeliveries(10)).toHaveLength(0);

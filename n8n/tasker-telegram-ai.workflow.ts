@@ -26,11 +26,29 @@ const telegramTrigger = trigger({
       message: {
         message_id: 10,
         from: { id: 123456789 },
-        chat: { id: 123456789 },
+        chat: { id: 123456789, type: "private" },
         text: "Dodaj zadanie dla Michała: oddzwonić jutro o 15:00",
       },
     },
   ],
+});
+
+const isPrivateChat = ifElse({
+  version: 2.3,
+  config: {
+    name: "Czy to czat prywatny?",
+    parameters: {
+      conditions: {
+        options: { caseSensitive: true, leftValue: "", typeValidation: "strict" },
+        conditions: [{
+          leftValue: expr('{{ $json.callback_query?.message?.chat?.type ?? $json.message?.chat?.type ?? "" }}'),
+          rightValue: "private",
+          operator: { type: "string", operation: "equals" },
+        }],
+        combinator: "and",
+      },
+    },
+  },
 });
 
 const isVoiceMessage = ifElse({
@@ -749,7 +767,9 @@ const commandFlow = normalizeUpdate.to(
 export default workflow("tasker-telegram-ai", "Tasker — Telegram + AI")
   .add(telegramTrigger)
   .to(
-    isVoiceMessage
-      .onTrue(downloadVoiceMessage.to(transcribeVoiceMessage).to(commandFlow))
-      .onFalse(commandFlow),
+    isPrivateChat.onTrue(
+      isVoiceMessage
+        .onTrue(downloadVoiceMessage.to(transcribeVoiceMessage).to(commandFlow))
+        .onFalse(commandFlow),
+    ),
   );
